@@ -367,11 +367,11 @@
             <h3>Music folder</h3>
             <p id="folder-status"></p>
             <input type="file" id="folder-input" webkitdirectory multiple hidden>
-            <div class="field-row" style="margin-top:14px">
-              <button class="btn" id="folder-pick" style="flex:1"><i data-lucide="folder-open"></i><span>Choose folder</span></button>
-              <button class="btn btn--ghost" id="folder-rescan" style="flex:1" hidden><i data-lucide="refresh-cw"></i>Rescan</button>
+            <div class="field-row" style="margin-top:14px;flex-wrap:wrap">
+              <button class="btn" id="folder-pick" style="flex:1 1 140px"><i data-lucide="folder-open"></i><span>Choose folder</span></button>
+              <button class="btn btn--ghost" id="folder-rescan" style="flex:1 1 140px" hidden><i data-lucide="refresh-cw"></i>Rescan folder</button>
               <button class="btn btn--ghost btn--round" id="folder-clear" aria-label="Remove folder" hidden><i data-lucide="x"></i></button>
-              <button class="btn" id="folder-import" style="flex:1" hidden><i data-lucide="folder-open"></i>Import folder</button>
+              <button class="btn" id="folder-import" style="flex:1 1 140px" hidden><i data-lucide="folder-open"></i>Import folder</button>
             </div>
           </div>
 
@@ -714,21 +714,33 @@
       const files = [...input.files].filter((f) => f.type.startsWith('audio/') || /\.(mp3|m4a|aac|wav|flac|ogg|opus)$/i.test(f.name));
       input.value = '';
       if (!files.length) { uploadMsg.textContent = 'No audio files selected.'; return; }
-      let added = 0, failed = false;
+      const rel = files[0].webkitRelativePath;
+      const root = rel ? rel.split('/')[0] : 'your files';
+      let added = 0, skipped = 0, failed = false;
       uploadMsg.textContent = 'Saving…';
       for (const f of files) {
         try {
+          const sig = `${f.name}|${f.size}|${f.lastModified}`;
+          if (library.some((t) => t.sig === sig)) { skipped++; continue; }   // already added
           const id = 'local-' + uid();
           await dbPut(id, f);
           const { title, author } = parseName(f.name);
-          library.push({ id, kind: 'local', title, author, size: f.size });
+          library.push({ id, kind: 'local', title, author, size: f.size, sig });
           added++;
         } catch (_) { failed = true; }
       }
       save(STORE.library, library);
       renderLibrary();
-      uploadMsg.textContent = (added ? `Added ${added} song${added === 1 ? '' : 's'} — tap one below to play.` : '')
-        + (failed ? ' Some files couldn’t be saved (storage may be full).' : '');
+      const summary = added
+        ? `Added ${added} new song${added === 1 ? '' : 's'} — tap one below to play.`
+        : (skipped ? 'No new songs — everything was already added.' : '');
+      uploadMsg.textContent = summary + (failed ? ' Some files couldn’t be saved (storage may be full).' : '');
+      if (input === folderInput && (added || skipped)) {
+        importedName = root;
+        save(IMPORTED_KEY, importedName);
+        renderFolderUI();
+        folderStatus.textContent = `“${root}”: ${added} new, ${skipped} already added. Tap Rescan folder and pick it again any time to check for more.`;
+      }
       if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
     };
     fileInput.addEventListener('change', () => importFrom(fileInput));
@@ -791,6 +803,8 @@
     const SCAN_EVERY = 60000;
     const folderFiles = new Map();            // track id -> FileSystemFileHandle
     let folderHandle = null, scanning = null, lastScan = 0;
+    const IMPORTED_KEY = 'ytmp-imported';
+    let importedName = load(IMPORTED_KEY, '');   // folder imported once (browsers without folder access)
 
     const isFolderTrack = (t) => t.id.startsWith('local-dir:');
     const metaGet = (k) => dbTx('readonly', (st) => st.get(k), 'meta');
@@ -819,9 +833,12 @@
 
     function renderFolderUI() {
       if (!FS_OK) {
-        folderPick.hidden = folderRescan.hidden = folderClear.hidden = true;
-        folderImport.hidden = false;
-        folderStatus.textContent = 'This browser (including iPhone Safari) can’t keep access to a folder, so it can’t watch one for new songs. You can import a whole folder once — pick it again later to add new songs.';
+        folderPick.hidden = folderClear.hidden = true;
+        folderImport.hidden = !!importedName;
+        folderRescan.hidden = !importedName;
+        folderStatus.textContent = importedName
+          ? `Imported “${importedName}”. Tap Rescan folder and pick it again to add any new songs.`
+          : 'This browser (including iPhone Safari) can’t keep access to a folder, so it can’t watch one for new songs. Import a folder once, then use Rescan folder to pick up new songs later.';
         return;
       }
       folderPick.querySelector('span').textContent = folderHandle ? 'Change folder' : 'Choose folder';
@@ -903,6 +920,7 @@
     });
 
     folderRescan.addEventListener('click', async () => {
+      if (!FS_OK) { folderInput.click(); return; }   // no folder access: pick the folder again
       if (!(await ensurePermission(true))) { folderStatus.textContent = 'Permission wasn’t granted.'; return; }
       syncFolder();
     });
