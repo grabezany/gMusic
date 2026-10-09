@@ -289,14 +289,7 @@
         <section class="page">
           <h1>Home</h1>
           <h2>For You</h2>
-          <div class="card card--row">
-            <div class="icon-badge"><i data-lucide="calendar"></i></div>
-            <div><h3>Today</h3><p>3 events, 2 reminders.</p></div>
-          </div>
-          <div class="card card--row">
-            <div class="icon-badge"><i data-lucide="bookmark"></i></div>
-            <div><h3>Saved</h3><p>12 items waiting for you.</p></div>
-          </div>
+          <p>Nothing here yet... try searching for music!</p>
         </section>
 
         <!-- 2 · Search -->
@@ -306,17 +299,15 @@
           <input type="text" placeholder="Search..."></input>
           <h2>Discover Something New</h2>
             <div class="grid">
-            <div class="card"><h3>Design</h3></div>
+            <div class="card"><h3>Pop</h3></div>
 
-            <div class="card"><h3>Travel</h3></div>
+            <div class="card"><h3>Rock</h3></div>
 
-            <div class="card"><h3>Music</h3></div>
+            <div class="card"><h3>Hip Hop</h3></div>
 
-            <div class="card"><h3>Focus</h3></div>
+            <div class="card"><h3>R&B</h3></div>
 
-            <div class="card"><h3>Reading</h3></div>
-
-            <div class="card"><h3>Studio</h3></div>
+            <div class="card"><h3>Country</h3></div>
           </div>    
         </section>
 
@@ -331,9 +322,8 @@
         </section>
 
         <!-- 4 · News -->
-        <section class="page">
+        <section class="page" id="newsTab">
           <h1>News</h1>
-          <p>Nothing here yet...</p>
         </section>
       </div>
     </main>
@@ -489,6 +479,44 @@
         if (e.key === 'ArrowLeft')  goTo(currentIndex - 1);
       });
     })();
+
+
+    //Notification System
+    var notifications = [
+        {
+            id: 1,
+            title: "Welcome to gMusic!",
+            summary: "Your personalized music experience starts here.",
+            message: "Check out the latest album from your favorite artist!",
+            timestamp: "2024-06-01 10:00 AM",
+            icon: "music"
+        }
+    ];
+    const section = document.getElementById("newsTab"); 
+    function populateNotifications() {
+        for (var i = 0; i < notifications.length; i++) {
+            var notification = notifications[i];
+            var notificationElement = document.createElement("div");
+            notificationElement.className = "card card--row";
+            notificationElement.innerHTML = "<div class=\"icon-badge\"><i data-lucide=\"" + notification.icon + "\"></i></div><div><h3>" + notification.title + "</h3><p>" + notification.summary + "</p></div>";
+            section.appendChild(notificationElement);
+            notificationElement.addEventListener("click", (function(notification) {
+                return function() {
+                    alert(notification.message + "\n\nTimestamp: " + notification.timestamp);
+                };
+            })(notification));
+        }
+    }
+    // INIT NOTIFICATIONS
+    window.onload = function() {
+        populateNotifications();
+    };
+    /*
+    <div class="card card--row">
+            <div class="icon-badge"><i data-lucide="log-out"></i></div>
+            <div><h3>Sign out</h3><p>See you soon.</p></div>
+          </div>
+    */
   </script>
 </body>
 </html>
