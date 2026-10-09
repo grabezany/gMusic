@@ -133,12 +133,12 @@
     }
 
     input {
-        width: 100%;
-        padding: 10px;
-        margin-bottom: 20px;
-        border-radius: 20px;
-        border: 1px solid var(--line);
-        background-color: var(--nav);
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 20px;
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      background-color: var(--nav);
     }
 
 
@@ -171,6 +171,30 @@
 
     .card--row    { display: flex; align-items: center; gap: 14px; }
     .card--center { text-align: center; }
+
+    /* Background image card variant */
+    .card--image {
+      position: relative;
+      background-size: cover;
+      background-position: center;
+      border: 0;
+      color: #ffffff;
+      overflow: hidden;
+    }
+
+    .card--image::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0) 60%);
+      border-radius: inherit;
+    }
+
+    .card--image h3 {
+      position: relative;
+      z-index: 1;
+      color: #ffffff;
+    }
 
     /* Icon badge */
     .icon-badge {
@@ -279,47 +303,47 @@
     /* ==========================================================================
        7. MODAL
        ========================================================================== */
-       .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-}
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
 
-.modal-card {
-    background: var(--card);
-    padding: 24px;
-    border-radius: 8px;
-    max-width: 500px;
-    width: 90%;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
+    .modal-card {
+      background: var(--card);
+      padding: 24px;
+      border-radius: 8px;
+      max-width: 500px;
+      width: 90%;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
 
-.modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-}
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
 
-.modal-close {
-    background: none;
-    border: none;
-    font-size: 24px;
-    cursor: pointer;
-}
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+    }
 
-/* MISC ELEMENTS*/
-a {
-    color: #009bc2;
-    text-decoration: none;
-}
+    /* MISC ELEMENTS*/
+    a {
+      color: #009bc2;
+      text-decoration: none;
+    }
   </style>
 </head>
 
@@ -334,10 +358,12 @@ a {
         <section class="page">
           <h1>Home</h1>
           <h2>For You</h2>
-            <div class="grid">
-            <div class="card"><img src="https://grabezany.github.io/gMusic/images/frank_ocean.png" style="width: 800px; height: 800px"><h3>Frank Ocean</h3></div>
+          <div class="grid">
+            <div class="card card--image" style="background-image: url('https://grabezany.github.io/gMusic/images/frank_ocean.png');">
+              <h3>Frank Ocean</h3>
+            </div>
 
-            <div class="card"><h3>Malcom Todd</h3></div>
+            <div class="card"><h3>Malcolm Todd</h3></div>
 
             <div class="card"><h3>Kendrick Lamar</h3></div>
 
@@ -348,12 +374,11 @@ a {
         </section>
 
         <!-- 2 · Search -->
-        <!-- Use 800x800 images for grid cards -->
         <section class="page">
           <h1>Search</h1>
           <input type="text" placeholder="Search..."></input>
           <h2>Discover Something New</h2>
-            <div class="grid">
+          <div class="grid">
             <div class="card"><h3>Pop</h3></div>
 
             <div class="card"><h3>Rock</h3></div>
@@ -371,7 +396,7 @@ a {
           <h1>Library</h1>
           <h2>Playlists</h2>
 
-        <div class="grid">
+          <div class="grid">
             <div class="card"><h3>Liked Songs</h3></div>
           </div>    
         </section>
@@ -439,7 +464,6 @@ a {
       /* ======================================================================
          RENDERING
          ====================================================================== */
-      // position = fractional tab index (e.g. 1.4 while dragging between tabs)
       function render(position) {
         track.style.transform = `translateX(${-position * (100 / TAB_COUNT)}%)`;
         nav.style.setProperty('--p', position);
@@ -489,7 +513,6 @@ a {
         const dx = e.clientX - drag.startX;
         const dy = e.clientY - drag.startY;
 
-        // Decide scroll direction once movement is meaningful
         if (drag.axis === null &&
             (Math.abs(dx) > AXIS_LOCK_THRESHOLD || Math.abs(dy) > AXIS_LOCK_THRESHOLD)) {
           drag.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
@@ -535,86 +558,80 @@ a {
       });
     })();
 
-
-    //Notification System
+    // Notification System
     var notifications = [
-        {
-            id: 1,
-            title: "Welcome to gMusic!",
-            summary: "Your personalized music experience starts here.",
-            message: "<p>Welcome to gMusic! gMusic is a powerful open source music player. Where you can discover and enjoy your favorite tunes. On top of that, its completely free with no ads!",
-            timestamp: "10-9-2026",
-            icon: "music"
-        }
+      {
+        id: 1,
+        title: "Welcome to gMusic!",
+        summary: "Your personalized music experience starts here.",
+        message: "<p>Welcome to gMusic! gMusic is a powerful open source music player. Where you can discover and enjoy your favorite tunes. On top of that, its completely free with no ads!",
+        timestamp: "10-9-2026",
+        icon: "music"
+      }
     ];
+
     const section = document.getElementById("newsTab"); 
-   function populateNotifications() {
-    for (var i = 0; i < notifications.length; i++) {
+
+    function populateNotifications() {
+      for (var i = 0; i < notifications.length; i++) {
         var notification = notifications[i];
         var notificationElement = document.createElement("div");
         notificationElement.className = "card card--row";
         notificationElement.innerHTML = 
-            '<div class="icon-badge"><i data-lucide="' + notification.icon + '"></i></div>' +
-            '<div><h3>' + notification.title + '</h3><p>' + notification.summary + '</p></div>';
-        
+          '<div class="icon-badge"><i data-lucide="' + notification.icon + '"></i></div>' +
+          '<div><h3>' + notification.title + '</h3><p>' + notification.summary + '</p></div>';
+
         section.appendChild(notificationElement);
         lucide.createIcons();
 
         (function(data) {
-            notificationElement.addEventListener("click", function() {
-                showModal(data);
-            });
+          notificationElement.addEventListener("click", function() {
+            showModal(data);
+          });
         })(notification);
+      }
     }
-}
 
-function showModal(notification) {
-    var overlay = document.createElement("div");
-    overlay.className = "modal-overlay";
+    function showModal(notification) {
+      var overlay = document.createElement("div");
+      overlay.className = "modal-overlay";
 
-    var modal = document.createElement("div");
-    modal.className = "modal-card";
-    
-    // notification.message is directly placed in innerHTML
-    modal.innerHTML = 
+      var modal = document.createElement("div");
+      modal.className = "modal-card";
+
+      modal.innerHTML = 
         '<div class="modal-header">' +
-            '<h3>' + notification.title + '</h3>' +
-            '<button class="modal-close">&times;</button>' +
+          '<h3>' + notification.title + '</h3>' +
+          '<button class="modal-close">&times;</button>' +
         '</div>' +
         '<div class="modal-body rich-text">' +
-            (notification.message || notification.summary) +
+          (notification.message || notification.summary) +
         '</div>';
 
-    overlay.appendChild(modal);
-    document.body.appendChild(overlay);
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
 
-    if (window.lucide) {
+      if (window.lucide) {
         lucide.createIcons();
-    }
+      }
 
-    function closeModal() {
+      function closeModal() {
         if (document.body.contains(overlay)) {
-            document.body.removeChild(overlay);
+          document.body.removeChild(overlay);
         }
+      }
+
+      modal.querySelector(".modal-close").addEventListener("click", closeModal);
+      overlay.addEventListener("click", function(e) {
+        if (e.target === overlay) {
+          closeModal();
+        }
+      });
     }
 
-    modal.querySelector(".modal-close").addEventListener("click", closeModal);
-    overlay.addEventListener("click", function(e) {
-        if (e.target === overlay) {
-            closeModal();
-        }
-    });
-}
-    // INIT NOTIFICATIONS
     window.onload = function() {
-        populateNotifications();
+      populateNotifications();
     };
-    /*
-    <div class="card card--row">
-            <div class="icon-badge"><i data-lucide="log-out"></i></div>
-            <div><h3>Sign out</h3><p>See you soon.</p></div>
-          </div>
-    */
   </script>
 </body>
 </html>
