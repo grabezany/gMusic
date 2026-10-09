@@ -71,7 +71,7 @@
     .app { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--surface); }
     .viewport { height: 100%; overflow: hidden; touch-action: pan-y; }
     .track {
-      display: flex; width: 400%; height: 100%;
+      display: flex; width: 500%; height: 100%;
       transition: transform var(--speed) var(--ease);
       will-change: transform;
     }
@@ -81,7 +81,7 @@
        4. PAGES
        ========================================================================== */
     .page {
-      width: 25%; height: 100%;
+      width: 20%; height: 100%;
       overflow-y: auto; scrollbar-width: none;
       padding:
         calc(var(--safe-top) + 28px)
@@ -89,6 +89,14 @@
         calc(var(--safe-bottom) + 190px);
     }
     .page::-webkit-scrollbar { display: none; }
+
+    /* Special rule for the 5th tab (Tool) to fit the iframe edge-to-edge */
+    .page.tool-page {
+      padding: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
 
     .eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
     h1 { margin: 6px 0 22px; font-size: 32px; font-weight: 700; letter-spacing: -.03em; }
@@ -236,7 +244,7 @@
     }
     .nav__pill {
       position: absolute; top: var(--nav-gap); bottom: var(--nav-gap); left: var(--nav-gap);
-      width: calc((100% - var(--nav-gap) * 2) / 4);
+      width: calc((100% - var(--nav-gap) * 2) / 5);
       border-radius: 999px; background: var(--pill);
       box-shadow: inset 0 0 0 1px rgba(255,255,255,.07);
       transform: translateX(calc(var(--p, 0) * 100%));
@@ -255,6 +263,15 @@
     .tab.active { color: var(--nav-active); }
     .tab.active svg { transform: translateY(-1px) scale(1.08); }
     .tab:focus-visible { outline: 2px solid var(--nav-active); outline-offset: -3px; }
+
+    /* Responsive Fullscreen Tool Frame styling */
+    .tool-frame {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: var(--bg);
+      flex: 1;
+    }
 
     /* Hidden YouTube engine */
     #yt-hidden-player { position: absolute; top: -9999px; left: -9999px; width: 1px; height: 1px; }
@@ -308,10 +325,16 @@
             <button class="btn" id="load-btn" style="flex:1"><i data-lucide="play"></i>Play now</button>
             <button class="btn btn--ghost" id="queue-btn" style="flex:1"><i data-lucide="list-plus"></i>Add to queue</button>
           </div>
+          <input type="file" id="file-input" accept="audio/*,.mp3,.m4a,.aac,.wav,.flac,.ogg,.opus" multiple hidden>
+          <button class="btn btn--ghost" id="upload-btn" style="width:100%;margin-top:10px"><i data-lucide="upload"></i>Upload music from device</button>
+          <p class="hint" id="upload-msg">Your files stay on this device and play offline, even with the screen off.</p>
           <p class="error" id="load-error"></p>
 
           <div class="section-title"><span>Up next</span><button class="link-btn" id="clear-queue">Clear</button></div>
           <div id="queue-list"></div>
+
+          <div class="section-title"><span>On this device</span><button class="link-btn" id="queue-all">Queue all</button></div>
+          <div id="library-list"></div>
         </section>
 
         <!-- 3 · Playlists -->
@@ -341,8 +364,13 @@
 
           <div class="card">
             <h3>Background playback</h3>
-            <p>Lock-screen controls and a silent keep-alive track turn on automatically while music plays. On iPhone, tap Share → Add to Home Screen and open it from there.</p>
+            <p>Music you upload plays through the phone’s own audio player, so it keeps going with the screen off and works with lock-screen controls. YouTube tracks use a best-effort workaround and may still pause. On iPhone, tap Share → Add to Home Screen and open it from there.</p>
           </div>
+        </section>
+
+        <!-- 5 · Tool (Iframe Tab) -->
+        <section class="page tool-page">
+          <iframe src="https://ezconv.cc/3ca77" class="tool-frame" title="Tool"></iframe>
         </section>
 
       </div>
@@ -365,6 +393,7 @@
       <button class="tab" role="tab" aria-selected="false"><i data-lucide="link"></i><span>Load</span></button>
       <button class="tab" role="tab" aria-selected="false"><i data-lucide="list-music"></i><span>Playlists</span></button>
       <button class="tab" role="tab" aria-selected="false"><i data-lucide="sliders-horizontal"></i><span>Settings</span></button>
+      <button class="tab" role="tab" aria-selected="false"><i data-lucide="sparkles"></i><span>Tool</span></button>
     </nav>
   </div>
 
@@ -390,6 +419,8 @@
     const queueBtn = $('queue-btn'), clearQueueBtn = $('clear-queue'), queueList = $('queue-list');
     const playlistList = $('playlist-list'), plName = $('pl-name'), plCreate = $('pl-create');
     const sheet = $('sheet'), sheetPanel = $('sheet-panel');
+    const uploadBtn = $('upload-btn'), fileInput = $('file-input'), uploadMsg = $('upload-msg');
+    const libraryList = $('library-list'), queueAllBtn = $('queue-all');
     const mini = $('mini'), miniThumb = $('mini-thumb'), miniTitle = $('mini-title'), miniPlay = $('mini-play');
 
     /* ========================================================================
@@ -417,7 +448,18 @@
       return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 
-    const thumbUrl = (id) => `https://img.youtube.com/vi/${id}/mqdefault.jpg`;
+    // Placeholder cover for uploaded files
+    const LOCAL_THUMB = (() => {
+      const c = document.createElement('canvas'); c.width = 320; c.height = 180;
+      const x = c.getContext('2d');
+      const g = x.createLinearGradient(0, 0, 320, 180);
+      g.addColorStop(0, '#5a5a61'); g.addColorStop(1, '#2b2b30');
+      x.fillStyle = g; x.fillRect(0, 0, 320, 180);
+      x.fillStyle = 'rgba(255,255,255,.85)'; x.font = 'bold 84px sans-serif';
+      x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('♪', 160, 95);
+      return c.toDataURL('image/png');
+    })();
+    const thumbUrl = (id) => id.startsWith('local-') ? LOCAL_THUMB : `https://img.youtube.com/vi/${id}/mqdefault.jpg`;
 
     /* ========================================================================
        TAB NAVIGATION + SWIPE
@@ -502,13 +544,14 @@
     /* ========================================================================
        STORAGE & STATE
        ======================================================================== */
-    const STORE = { queue: 'ytmp-queue', playlists: 'ytmp-playlists' };
+    const STORE = { queue: 'ytmp-queue', playlists: 'ytmp-playlists', library: 'ytmp-library' };
     const load = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch (_) { return fallback; } };
     const save = (key, val) => { try { localStorage.setItem(key, JSON.stringify(val)); } catch (_) {} };
     const uid = () => Math.random().toString(36).slice(2, 9);
 
     let queue = load(STORE.queue, []);
     let playlists = load(STORE.playlists, []);
+    let library = load(STORE.library, []);   // uploaded files (audio itself is in IndexedDB)
     let qIndex = -1;            // position of the current track in the queue
     let currentTrack = null;
     let openPlaylist = null;
@@ -528,6 +571,198 @@
     }
 
     /* ========================================================================
+       LOCAL FILES — your own music, stored on this device
+       Audio blobs live in IndexedDB; the track list lives in localStorage.
+       They play through a normal <audio> element, which iOS keeps running
+       with the screen off.
+       ======================================================================== */
+    const localAudio = new Audio();
+    localAudio.preload = 'auto';
+    localAudio.setAttribute('playsinline', '');
+    let localUrl = null, localReady = false, muted = false;
+
+    const isLocal = () => !!currentTrack && currentTrack.kind === 'local';
+
+    let dbPromise;
+    function db() {
+      dbPromise = dbPromise || new Promise((resolve, reject) => {
+        const req = indexedDB.open('ytmp-files', 1);
+        req.onupgradeneeded = () => req.result.createObjectStore('files');
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      return dbPromise;
+    }
+    async function dbTx(mode, fn) {
+      const d = await db();
+      return new Promise((resolve, reject) => {
+        const tx = d.transaction('files', mode);
+        const req = fn(tx.objectStore('files'));
+        tx.oncomplete = () => resolve(req && req.result);
+        tx.onerror = tx.onabort = () => reject(tx.error);
+      });
+    }
+    const dbPut = (id, blob) => dbTx('readwrite', (st) => st.put(blob, id));
+    const dbGet = (id) => dbTx('readonly', (st) => st.get(id));
+    const dbDelete = (id) => dbTx('readwrite', (st) => st.delete(id));
+
+    // ---- engine-neutral helpers (YouTube or uploaded file) ----
+    function getTime() {
+      if (isLocal()) return localAudio.currentTime || 0;
+      return player && typeof player.getCurrentTime === 'function' ? player.getCurrentTime() : 0;
+    }
+    function getDuration() {
+      if (isLocal()) return isFinite(localAudio.duration) ? localAudio.duration : 0;
+      return player && typeof player.getDuration === 'function' ? player.getDuration() : 0;
+    }
+    function seekTo(sec) {
+      if (isLocal()) localAudio.currentTime = sec;
+      else if (player && typeof player.seekTo === 'function') player.seekTo(sec, true);
+    }
+    function isPlaying() {
+      if (isLocal()) return !localAudio.paused;
+      return !!player && typeof player.getPlayerState === 'function' && player.getPlayerState() === YT.PlayerState.PLAYING;
+    }
+    function updateProgress(current, total) {
+      if (!(total > 0)) return;
+      seekBar.value = (current / total) * 100;
+      setFill(seekBar);
+      currentTimeEl.textContent = formatTime(current);
+      totalTimeEl.textContent = formatTime(total);
+      if ('mediaSession' in navigator && navigator.mediaSession.setPositionState) {
+        try { navigator.mediaSession.setPositionState({ duration: total, position: Math.min(current, total), playbackRate: 1 }); } catch (_) {}
+      }
+    }
+
+    // ---- playing an uploaded file ----
+    function playLocal(t) {
+      currentTrack = t;
+      showTrack(t);
+      resetProgress();
+      wantPlaying = true;
+      localReady = false;
+      loadError.textContent = '';
+      endSession();
+      if (player && typeof player.stopVideo === 'function') player.stopVideo();
+
+      // Start something silent right now, inside the tap, so iOS lets us swap in the real file after it loads.
+      localAudio.src = SILENT_URL;
+      localAudio.play().catch(() => {});
+
+      dbGet(t.id).then((blob) => {
+        if (currentTrack !== t) return;                       // user already moved on
+        if (!blob) { localAudio.pause(); setTitle('File not found', 'Upload it again from the Load tab'); return; }
+        if (localUrl) URL.revokeObjectURL(localUrl);
+        localUrl = URL.createObjectURL(blob);
+        localReady = true;
+        localAudio.src = localUrl;
+        localAudio.muted = muted;
+        localAudio.volume = Number(volumeBar.value) / 100;
+        if (wantPlaying) localAudio.play().catch(() => {});
+      }).catch(() => { localAudio.pause(); setTitle('Could not read this file', ''); });
+      return true;
+    }
+
+    localAudio.addEventListener('play', () => {
+      if (!isLocal()) return;
+      setIcon(playBtn, 'pause'); setIcon(miniPlay, 'pause'); setPlaybackState('playing');
+    });
+    localAudio.addEventListener('pause', () => {
+      if (!isLocal()) return;
+      setIcon(playBtn, 'play'); setIcon(miniPlay, 'play'); setPlaybackState('paused');
+    });
+    const onLocalTime = () => { if (isLocal() && localReady) updateProgress(localAudio.currentTime, getDuration()); };
+    localAudio.addEventListener('timeupdate', onLocalTime);
+    localAudio.addEventListener('loadedmetadata', onLocalTime);
+    localAudio.addEventListener('ended', () => {
+      if (!isLocal() || !localReady) return;
+      if (!next()) { wantPlaying = false; resetProgress(); }
+    });
+    localAudio.addEventListener('error', () => {
+      if (isLocal() && localReady) setTitle('Could not play this file', 'The format may not be supported');
+    });
+
+    // ---- uploading ----
+    function parseName(name) {
+      const base = name.replace(/\.[^.]+$/, '').replace(/_/g, ' ').trim();
+      const parts = base.split(/\s+-\s+/);
+      return parts.length > 1
+        ? { author: parts[0].trim(), title: parts.slice(1).join(' - ').trim() }
+        : { title: base, author: 'Local file' };
+    }
+    const fmtSize = (b) => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+
+    uploadBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', async () => {
+      const files = [...fileInput.files].filter((f) => f.type.startsWith('audio/') || /\.(mp3|m4a|aac|wav|flac|ogg|opus)$/i.test(f.name));
+      fileInput.value = '';
+      if (!files.length) { uploadMsg.textContent = 'No audio files selected.'; return; }
+      let added = 0, failed = false;
+      uploadMsg.textContent = 'Saving…';
+      for (const f of files) {
+        try {
+          const id = 'local-' + uid();
+          await dbPut(id, f);
+          const { title, author } = parseName(f.name);
+          library.push({ id, kind: 'local', title, author, size: f.size });
+          added++;
+        } catch (_) { failed = true; }
+      }
+      save(STORE.library, library);
+      renderLibrary();
+      uploadMsg.textContent = (added ? `Added ${added} song${added === 1 ? '' : 's'} — tap one below to play.` : '')
+        + (failed ? ' Some files couldn’t be saved (storage may be full).' : '');
+      if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
+    });
+
+    function renderLibrary() {
+      libraryList.innerHTML = library.length
+        ? library.map((t, i) => row({ ...t, author: (t.author ? t.author + ' · ' : '') + fmtSize(t.size) },
+            `data-i="${i}"`, !!currentTrack && currentTrack.id === t.id,
+            iconBtn('queue', 'list-end', 'Add to queue') + iconBtn('delete', 'trash-2', 'Delete from device'))).join('')
+        : '<p class="empty">No uploaded music yet.</p>';
+      icons();
+    }
+
+    async function deleteLocal(t) {
+      if (!confirm(`Delete “${t.title}” from this device?`)) return;
+      try { await dbDelete(t.id); } catch (_) {}
+      library = library.filter((x) => x.id !== t.id);
+      save(STORE.library, library);
+
+      const before = queue.slice(0, qIndex + 1).filter((x) => x.id === t.id).length;
+      queue = queue.filter((x) => x.id !== t.id);
+      qIndex = Math.max(-1, qIndex - before);
+      playlists.forEach((p) => { p.tracks = p.tracks.filter((x) => x.id !== t.id); });
+      savePlaylists();
+
+      if (currentTrack && currentTrack.id === t.id) stopUser();
+      renderLibrary(); renderQueue(); renderPlaylists();
+    }
+
+    libraryList.addEventListener('click', (e) => {
+      const item = e.target.closest('.item');
+      if (!item) return;
+      const t = library[Number(item.dataset.i)];
+      const actEl = e.target.closest('[data-act]');
+      const act = actEl && actEl.dataset.act;
+      if (act === 'queue') { queue.push({ ...t }); renderQueue(); }
+      else if (act === 'delete') deleteLocal(t);
+      else {
+        const q = { ...t };
+        queue.push(q);
+        qIndex = queue.length - 1;
+        renderQueue();
+        if (playTrack(q)) goTo(0);
+      }
+    });
+
+    queueAllBtn.addEventListener('click', () => {
+      queue.push(...library.map((t) => ({ ...t })));
+      renderQueue();
+    });
+
+    /* ========================================================================
        BACKGROUND PLAYBACK (iPhone lock screen)
        A silent looping <audio> keeps the page's audio session alive, and the
        Media Session API gives lock-screen controls.
@@ -545,7 +780,8 @@
       return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
     }
 
-    const keepAlive = new Audio(makeSilentWav());
+    const SILENT_URL = makeSilentWav();
+    const keepAlive = new Audio(SILENT_URL);
     keepAlive.loop = true;
     keepAlive.setAttribute('playsinline', '');
 
@@ -570,7 +806,8 @@
       if (!('mediaSession' in navigator)) return;
       const handlers = {
         play: resume, pause: pauseUser, stop: stopUser,
-        previoustrack: prev, nexttrack: next
+        previoustrack: prev, nexttrack: next,
+        seekto: (d) => { if (d && d.seekTime != null) seekTo(d.seekTime); }
       };
       Object.entries(handlers).forEach(([name, fn]) => {
         try { navigator.mediaSession.setActionHandler(name, fn); } catch (_) {}
@@ -579,7 +816,7 @@
 
     // If iOS pauses the video when the screen turns off, try to pick it back up.
     document.addEventListener('visibilitychange', () => {
-      if (!wantPlaying || !player || typeof player.getPlayerState !== 'function') return;
+      if (isLocal() || !wantPlaying || !player || typeof player.getPlayerState !== 'function') return;
       startSession();
       if (player.getPlayerState() !== YT.PlayerState.PLAYING) player.playVideo();
     });
@@ -595,6 +832,7 @@
       setTitle(t.title, t.author);
       updateMediaSession(t);
       updateMini();
+      renderLibrary();
     }
 
     function setTitle(title, author) {
@@ -676,7 +914,7 @@
 
     function addToPlaylist(pl, tracks) {
       tracks.forEach((t) => {
-        if (!pl.tracks.some((x) => x.id === t.id)) pl.tracks.push({ id: t.id, title: t.title, author: t.author });
+        if (!pl.tracks.some((x) => x.id === t.id)) pl.tracks.push({ id: t.id, title: t.title, author: t.author, kind: t.kind });
       });
       savePlaylists();
       renderPlaylists();
@@ -791,9 +1029,9 @@
     }
 
     function prev() {
-      if (player && typeof player.getCurrentTime === 'function' && player.getCurrentTime() > 3) { player.seekTo(0, true); return; }
+      if (getTime() > 3) { seekTo(0); return; }
       if (qIndex > 0) playQueueIndex(qIndex - 1);
-      else if (player && typeof player.seekTo === 'function') player.seekTo(0, true);
+      else seekTo(0);
     }
 
     function submitLoad(playNow) {
@@ -843,11 +1081,13 @@
     }
 
     function playTrack(t) {
+      if (t.kind === 'local') return playLocal(t);
       if (!player || typeof player.loadVideoById !== 'function') {
         loadError.textContent = 'Player is still loading — try again in a second.';
         return false;
       }
       currentTrack = t;
+      localAudio.pause();             // switching from an uploaded file
       showTrack(t);
       resetProgress();
       wantPlaying = true;
@@ -858,6 +1098,7 @@
 
     function onPlayerStateChange(event) {
       const S = YT.PlayerState;
+      if (isLocal()) return;
 
       if ([S.PLAYING, S.PAUSED, S.CUED].includes(event.data) && currentTrack) {
         const d = player.getVideoData();
@@ -904,17 +1145,7 @@
       clearInterval(updateTimer);
       updateTimer = setInterval(() => {
         if (!player || typeof player.getCurrentTime !== 'function') return;
-        const current = player.getCurrentTime();
-        const total = player.getDuration();
-        if (total > 0) {
-          seekBar.value = (current / total) * 100;
-          setFill(seekBar);
-          currentTimeEl.textContent = formatTime(current);
-          totalTimeEl.textContent = formatTime(total);
-          if ('mediaSession' in navigator && navigator.mediaSession.setPositionState) {
-            try { navigator.mediaSession.setPositionState({ duration: total, position: Math.min(current, total), playbackRate: 1 }); } catch (_) {}
-          }
-        }
+        updateProgress(player.getCurrentTime(), player.getDuration());
       }, 500);
     }
 
@@ -922,29 +1153,31 @@
        CONTROLS
        ======================================================================== */
     function resume() {
-      if (!player) return;
       wantPlaying = true;
+      if (isLocal()) { localAudio.play().catch(() => {}); return; }
+      if (!player) return;
       startSession();
       player.playVideo();
     }
 
     function pauseUser() {
       wantPlaying = false;
+      if (isLocal()) { localAudio.pause(); return; }
       if (player) player.pauseVideo();
       endSession();
     }
 
     function stopUser() {
       wantPlaying = false;
-      if (player) player.stopVideo();
+      if (isLocal()) { localAudio.pause(); localAudio.currentTime = 0; resetProgress(); }
+      else if (player && typeof player.stopVideo === 'function') player.stopVideo();
       endSession();
       setPlaybackState('none');
     }
 
     function togglePlay() {
-      if (!player) return;
       if (!hasTrack) { if (queue.length) playQueueIndex(Math.max(qIndex, 0)); return; }
-      player.getPlayerState() === YT.PlayerState.PLAYING ? pauseUser() : resume();
+      isPlaying() ? pauseUser() : resume();
     }
 
     playBtn.addEventListener('click', togglePlay);
@@ -955,19 +1188,20 @@
     saveBtn.addEventListener('click', () => { if (currentTrack) openSheet([currentTrack]); });
 
     muteBtn.addEventListener('click', () => {
-      if (!player) return;
-      if (player.isMuted()) { player.unMute(); setIcon(muteBtn, 'volume-2'); }
-      else                  { player.mute();   setIcon(muteBtn, 'volume-x'); }
+      muted = !muted;
+      localAudio.muted = muted;
+      if (player && typeof player.mute === 'function') muted ? player.mute() : player.unMute();
+      setIcon(muteBtn, muted ? 'volume-x' : 'volume-2');
     });
 
     seekBar.addEventListener('input', () => {
       setFill(seekBar);
-      if (!player || !hasTrack) return;
-      player.seekTo(player.getDuration() * (seekBar.value / 100), true);
+      if (hasTrack) seekTo(getDuration() * (seekBar.value / 100));
     });
 
     volumeBar.addEventListener('input', () => {
       setFill(volumeBar);
+      localAudio.volume = Number(volumeBar.value) / 100;
       if (player && typeof player.setVolume === 'function') player.setVolume(Number(volumeBar.value));
     });
 
@@ -977,6 +1211,7 @@
     icons();
     renderQueue();
     renderPlaylists();
+    renderLibrary();
     setFill(seekBar);
     setFill(volumeBar);
     setupMediaKeys();
