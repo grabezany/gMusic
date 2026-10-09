@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Swipe Tabs</title>
+<style>
+:root{
+  box-sizing:border-box;
+  --bg:#ececee; --surface:#f7f7f8; --card:#ffffff; --text:#1c1c1f; --muted:#8a8a92;
+  --line:#dcdce0; --nav:rgba(40,40,44,.92); --nav-icon:#a3a3ab; --nav-active:#f4f4f5; --pill:#4a4a50;
+  --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#121214; --surface:#1a1a1d; --card:#232327; --text:#f1f1f3; --muted:#85858d;
+    --line:#2f2f34; --nav:rgba(58,58,63,.92); --nav-icon:#9a9aa2; --nav-active:#fff; --pill:#16161a;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121214; --surface:#1a1a1d; --card:#232327; --text:#f1f1f3; --muted:#85858d;
+  --line:#2f2f34; --nav:rgba(58,58,63,.92); --nav-icon:#9a9aa2; --nav-active:#fff; --pill:#16161a;
+}
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"SF Pro Text","Segoe UI",Roboto,sans-serif;overflow:hidden}
+.app{position:relative;height:100%;width:100%;background:var(--surface);overflow:hidden}
+.viewport{height:100%;touch-action:pan-y;overflow:hidden}
+.track{display:flex;height:100%;width:400%;transform:translateX(0);transition:transform .38s cubic-bezier(.22,.9,.3,1);will-change:transform}
+.track.drag{transition:none}
+.page{width:25%;height:100%;overflow-y:auto;padding:calc(var(--safe-t) + 28px) max(20px,calc((100vw - 560px)/2)) calc(var(--safe-b) + 120px);scrollbar-width:none}
+.page::-webkit-scrollbar{display:none}
+.eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
+h1{font-size:32px;letter-spacing:-.03em;margin:6px 0 22px;font-weight:700}
+.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:18px;margin-bottom:12px}
+.card h3{font-size:16px;font-weight:600;margin-bottom:4px}
+.card p{font-size:14px;color:var(--muted);line-height:1.5}
+.hero{height:150px;background:linear-gradient(135deg,#55555c,#2b2b30);color:#fff;border:0;display:flex;flex-direction:column;justify-content:flex-end}
+.hero p{color:#c4c4ca}
+.row{display:flex;align-items:center;gap:14px}
+.ico{width:42px;height:42px;border-radius:14px;background:var(--surface);display:grid;place-items:center;flex:none;color:var(--text)}
+.ico svg{width:20px;height:20px}
+.avatar{width:84px;height:84px;border-radius:50%;background:linear-gradient(135deg,#9a9aa2,#5a5a61);margin:10px auto 14px}
+.center{text-align:center}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid .card{margin:0;aspect-ratio:1;display:flex;align-items:flex-end}
+
+/* Pill navbar */
+.nav{position:absolute;left:50%;bottom:calc(var(--safe-b) + 18px);transform:translateX(-50%);
+  width:calc(100% - 40px);max-width:340px;height:68px;padding:6px;border-radius:999px;
+  background:var(--nav);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  box-shadow:0 14px 34px rgba(0,0,0,.28),inset 0 0 0 1px rgba(255,255,255,.06);display:flex;z-index:5}
+.pill{position:absolute;top:6px;bottom:6px;left:6px;width:calc((100% - 12px)/4);border-radius:999px;background:var(--pill);
+  transform:translateX(calc(var(--p,0) * 100%));transition:transform .38s cubic-bezier(.22,.9,.3,1);box-shadow:inset 0 0 0 1px rgba(255,255,255,.07)}
+.nav.drag .pill{transition:none}
+.tab{position:relative;flex:1;border:0;background:none;color:var(--nav-icon);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  font:inherit;font-size:10.5px;font-weight:600;letter-spacing:.02em;cursor:pointer;transition:color .25s;border-radius:999px}
+.tab svg{width:21px;height:21px;stroke-width:2;transition:transform .3s}
+.tab.active{color:var(--nav-active)}
+.tab.active svg{transform:translateY(-1px) scale(1.08)}
+.tab:focus-visible{outline:2px solid var(--nav-active);outline-offset:-3px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="viewport" id="vp">
+    <div class="track" id="track">
+      <section class="page">
+        <div class="eyebrow">Good morning</div><h1>Home</h1>
+        <div class="card hero"><h3>Swipe to explore</h3><p>Drag left or right, or tap the bar below.</p></div>
+        <div class="card row"><div class="ico"><i data-lucide="zap"></i></div><div><h3>Quick actions</h3><p>Everything within reach.</p></div></div>
+        <div class="card row"><div class="ico"><i data-lucide="calendar"></i></div><div><h3>Today</h3><p>3 events, 2 reminders.</p></div></div>
+        <div class="card row"><div class="ico"><i data-lucide="bookmark"></i></div><div><h3>Saved</h3><p>12 items waiting for you.</p></div></div>
+      </section>
+      <section class="page">
+        <div class="eyebrow">Discover</div><h1>Explore</h1>
+        <div class="grid">
+          <div class="card"><h3>Design</h3></div><div class="card"><h3>Travel</h3></div>
+          <div class="card"><h3>Music</h3></div><div class="card"><h3>Focus</h3></div>
+          <div class="card"><h3>Reading</h3></div><div class="card"><h3>Studio</h3></div>
+        </div>
+      </section>
+      <section class="page">
+        <div class="eyebrow">This week</div><h1>Activity</h1>
+        <div class="card row"><div class="ico"><i data-lucide="footprints"></i></div><div><h3>8,421 steps</h3><p>Up 12% from yesterday.</p></div></div>
+        <div class="card row"><div class="ico"><i data-lucide="flame"></i></div><div><h3>5 day streak</h3><p>Keep it going.</p></div></div>
+        <div class="card row"><div class="ico"><i data-lucide="moon"></i></div><div><h3>7h 20m sleep</h3><p>Right on target.</p></div></div>
+        <div class="card row"><div class="ico"><i data-lucide="droplets"></i></div><div><h3>1.8 L water</h3><p>Almost there.</p></div></div>
+      </section>
+      <section class="page">
+        <div class="eyebrow">Account</div><h1>Profile</h1>
+        <div class="card center"><div class="avatar"></div><h3>Alex Morgan</h3><p>alex@example.com</p></div>
+        <div class="card row"><div class="ico"><i data-lucide="bell"></i></div><div><h3>Notifications</h3><p>Manage alerts.</p></div></div>
+        <div class="card row"><div class="ico"><i data-lucide="shield-check"></i></div><div><h3>Privacy</h3><p>Control your data.</p></div></div>
+        <div class="card row"><div class="ico"><i data-lucide="log-out"></i></div><div><h3>Sign out</h3><p>See you soon.</p></div></div>
+      </section>
+    </div>
+  </div>
+
+  <nav class="nav" id="nav" role="tablist" aria-label="Main">
+    <div class="pill"></div>
+    <button class="tab active" role="tab" aria-selected="true"><i data-lucide="house"></i><span>Home</span></button>
+    <button class="tab" role="tab" aria-selected="false"><i data-lucide="compass"></i><span>Explore</span></button>
+    <button class="tab" role="tab" aria-selected="false"><i data-lucide="activity"></i><span>Activity</span></button>
+    <button class="tab" role="tab" aria-selected="false"><i data-lucide="user-round"></i><span>Profile</span></button>
+  </nav>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script>
+(function(){
+  if (window.lucide) lucide.createIcons();
+  var N=4, idx=0;
+  var vp=document.getElementById('vp'), track=document.getElementById('track'), nav=document.getElementById('nav');
+  var tabs=[].slice.call(nav.querySelectorAll('.tab'));
+
+  function render(p){
+    track.style.transform='translateX('+(-p*25)+'%)';
+    nav.style.setProperty('--p',p);
+  }
+  function go(i){
+    idx=Math.max(0,Math.min(N-1,i));
+    render(idx);
+    tabs.forEach(function(t,k){
+      t.classList.toggle('active',k===idx);
+      t.setAttribute('aria-selected',k===idx);
+    });
+  }
+  tabs.forEach(function(t,k){ t.addEventListener('click',function(){go(k)}); });
+
+  var sx=0, sy=0, st=0, dragging=false, locked=null, w=1;
+  vp.addEventListener('pointerdown',function(e){
+    sx=e.clientX; sy=e.clientY; st=Date.now(); locked=null; dragging=true; w=vp.clientWidth;
+  });
+  window.addEventListener('pointermove',function(e){
+    if(!dragging) return;
+    var dx=e.clientX-sx, dy=e.clientY-sy;
+    if(locked===null && (Math.abs(dx)>8||Math.abs(dy)>8)){
+      locked = Math.abs(dx)>Math.abs(dy) ? 'x' : 'y';
+      if(locked==='x'){ track.classList.add('drag'); nav.classList.add('drag'); }
+    }
+    if(locked!=='x') return;
+    var p=idx-dx/w;
+    if(p<0) p=p*0.25;                 // rubber-band at edges
+    if(p>N-1) p=(N-1)+(p-(N-1))*0.25;
+    render(p);
+  });
+  function end(e){
+    if(!dragging) return;
+    dragging=false;
+    if(locked==='x'){
+      track.classList.remove('drag'); nav.classList.remove('drag');
+      var dx=e.clientX-sx, v=Math.abs(dx)/Math.max(1,Date.now()-st);
+      var next=idx;
+      if(Math.abs(dx)>w*0.25 || v>0.5) next=idx+(dx<0?1:-1);
+      go(next);
+    }
+    locked=null;
+  }
+  window.addEventListener('pointerup',end);
+  window.addEventListener('pointercancel',end);
+
+  window.addEventListener('keydown',function(e){
+    if(e.key==='ArrowRight') go(idx+1);
+    if(e.key==='ArrowLeft') go(idx-1);
+  });
+})();
+</script>
+</body>
+</html>
