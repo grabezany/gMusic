@@ -710,9 +710,36 @@
     const fmtSize = (b) => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
 
     uploadBtn.addEventListener('click', () => fileInput.click());
-    const importFrom = async (input) => {
-      const files = [...input.files].filter((f) => f.type.startsWith('audio/') || /\.(mp3|m4a|aac|wav|flac|ogg|opus)$/i.test(f.name));
+    let importChain = Promise.resolve();   // imports run one at a time, so the duplicate check always sees the latest library
+
+    // Quick content fingerprint: file size + a hash of its first, middle and last 64 KB.
+    // Catches the same song even if it was renamed or re-saved.
+    async function fingerprint(blob) {
+      const CH = 65536, size = blob.size;
+      const parts = size <= CH * 3
+        ? [blob]
+        : [blob.slice(0, CH), blob.slice(Math.floor(size / 2) - CH / 2, Math.floor(size / 2) + CH / 2), blob.slice(size - CH)];
+      let h = 2166136261;
+      for (const part of parts) {
+        const bytes = new Uint8Array(await part.arrayBuffer());
+        for (let k = 0; k < bytes.length; k++) { h ^= bytes[k]; h = Math.imul(h, 16777619); }
+      }
+      return size + ':' + (h >>> 0).toString(36);
+    }
+
+    function isDuplicate(fp, title, size) {
+      return library.some((t) => t.fp === fp || (isFolderTrack(t) && t.size === size && t.title === title));
+    }
+
+    const importFrom = (input) => {
+      const files = [...input.files];     // grab them now — the input is cleared right away
+      const isFolder = input === folderInput;
       input.value = '';
+      importChain = importChain.then(() => importFiles(files, isFolder)).catch(() => {});
+    };
+
+    async function importFiles(all, isFolder) {
+      const files = all.filter((f) => f.type.startsWith('audio/') || /\.(mp3|m4a|aac|wav|flac|ogg|opus)$/i.test(f.name));
       if (!files.length) { uploadMsg.textContent = 'No audio files selected.'; return; }
       const rel = files[0].webkitRelativePath;
       const root = rel ? rel.split('/')[0] : 'your files';
@@ -720,29 +747,58 @@
       uploadMsg.textContent = 'Saving…';
       for (const f of files) {
         try {
-          const sig = `${f.name}|${f.size}|${f.lastModified}`;
-          if (library.some((t) => t.sig === sig)) { skipped++; continue; }   // already added
+          const fp = await fingerprint(f);
+          const { title, author } = parseName(f.name);
+          if (isDuplicate(fp, title, f.size)) { skipped++; continue; }      // already in your library
           const id = 'local-' + uid();
           await dbPut(id, f);
-          const { title, author } = parseName(f.name);
-          library.push({ id, kind: 'local', title, author, size: f.size, sig });
+          library.push({ id, kind: 'local', title, author, size: f.size, fp });
           added++;
         } catch (_) { failed = true; }
       }
       save(STORE.library, library);
       renderLibrary();
       const summary = added
-        ? `Added ${added} new song${added === 1 ? '' : 's'} — tap one below to play.`
+        ? `Added ${added} new song${added === 1 ? '' : 's'}${skipped ? ` (skipped ${skipped} duplicate${skipped === 1 ? '' : 's'})` : ''} — tap one below to play.`
         : (skipped ? 'No new songs — everything was already added.' : '');
       uploadMsg.textContent = summary + (failed ? ' Some files couldn’t be saved (storage may be full).' : '');
-      if (input === folderInput && (added || skipped)) {
+      if (isFolder && (added || skipped)) {
         importedName = root;
         save(IMPORTED_KEY, importedName);
         renderFolderUI();
         folderStatus.textContent = `“${root}”: ${added} new, ${skipped} already added. Tap Rescan folder and pick it again any time to check for more.`;
       }
       if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
-    };
+    }
+
+    // One-time cleanup of duplicates that were uploaded before this check existed.
+    async function dedupeLibrary() {
+      const seen = new Map();
+      let removed = 0;
+      for (const t of [...library]) {
+        if (isFolderTrack(t)) continue;
+        if (!t.fp) {
+          try { const blob = await dbGet(t.id); if (blob) { t.fp = await fingerprint(blob); } } catch (_) {}
+        }
+        if (!t.fp) continue;
+        const keep = seen.get(t.fp);
+        if (!keep) { seen.set(t.fp, t); continue; }
+
+        // t is a duplicate of keep: point everything that used t at keep, then delete t
+        queue.forEach((x) => { if (x.id === t.id) x.id = keep.id; });
+        playlists.forEach((p) => p.tracks.forEach((x) => { if (x.id === t.id) x.id = keep.id; }));
+        if (currentTrack && currentTrack.id === t.id) currentTrack.id = keep.id;
+        library = library.filter((x) => x !== t);
+        try { await dbDelete(t.id); } catch (_) {}
+        removed++;
+      }
+      playlists.forEach((p) => { const ids = new Set(); p.tracks = p.tracks.filter((x) => !ids.has(x.id) && ids.add(x.id)); });
+      save(STORE.library, library);
+      savePlaylists();
+      renderLibrary(); renderQueue(); renderPlaylists();
+      if (removed) uploadMsg.textContent = `Cleaned up ${removed} duplicate song${removed === 1 ? '' : 's'}.`;
+    }
+
     fileInput.addEventListener('change', () => importFrom(fileInput));
     folderInput.addEventListener('change', () => importFrom(folderInput));
 
@@ -777,20 +833,19 @@
       const t = library[Number(item.dataset.i)];
       const actEl = e.target.closest('[data-act]');
       const act = actEl && actEl.dataset.act;
-      if (act === 'queue') { queue.push({ ...t }); renderQueue(); }
+      if (act === 'queue') addToQueue([t]);
       else if (act === 'delete') deleteLocal(t);
       else {
-        const q = { ...t };
-        queue.push(q);
-        qIndex = queue.length - 1;
+        let i = queue.findIndex((x) => x.id === t.id);
+        if (i < 0) { queue.push({ ...t }); i = queue.length - 1; }
+        qIndex = i;
         renderQueue();
-        if (playTrack(q)) goTo(0);
+        if (playTrack(queue[i])) goTo(0);
       }
     });
 
     queueAllBtn.addEventListener('click', () => {
-      queue.push(...library.map((t) => ({ ...t })));
-      renderQueue();
+      addToQueue(library);
     });
 
     /* ========================================================================
@@ -875,7 +930,8 @@
         catch (_) { folderStatus.textContent = 'Couldn’t read that folder — tap Rescan to try again.'; return; }
         found.sort((a, b) => a.path.localeCompare(b.path));
 
-        const entries = [], fresh = new Map();
+        let entries = [];
+        const fresh = new Map();
         for (const { path, h } of found) {
           try {
             const f = await h.getFile();
@@ -889,6 +945,9 @@
         }
         folderFiles.clear();
         fresh.forEach((v, k) => folderFiles.set(k, v));
+
+        const uploaded = library.filter((t) => !isFolderTrack(t));
+        entries = entries.filter((e) => !uploaded.some((u) => u.size === e.size && u.title === e.title));
 
         const oldIds = new Set(library.filter(isFolderTrack).map((t) => t.id));
         const newIds = new Set(entries.map((e) => e.id));
@@ -1176,7 +1235,7 @@
       else if (act === 'delete') {
         if (confirm(`Delete “${pl.name}”?`)) { playlists = playlists.filter((x) => x !== pl); savePlaylists(); renderPlaylists(); }
       }
-      else if (act === 'enqueue') { queue.push(...pl.tracks.map((t) => ({ ...t }))); renderQueue(); actEl.textContent = 'Added ✓'; }
+      else if (act === 'enqueue') { addToQueue(pl.tracks); actEl.textContent = 'Added ✓'; }
       else if (act === 'toggle') { openPlaylist = openPlaylist === pl.id ? null : pl.id; renderPlaylists(); }
     });
 
@@ -1208,6 +1267,11 @@
       renderQueue();
     });
 
+    function addToQueue(tracks) {
+      tracks.forEach((t) => { if (!queue.some((x) => x.id === t.id)) queue.push({ ...t }); });
+      renderQueue();
+    }
+
     function playQueueIndex(i) {
       qIndex = i;
       renderQueue();
@@ -1230,6 +1294,13 @@
       if (!id) { loadError.textContent = 'Please enter a valid YouTube video link.'; return; }
       loadError.textContent = '';
       videoUrlInput.value = '';
+
+      const dupIndex = queue.findIndex((x) => x.id === id);
+      if (dupIndex >= 0) {
+        if (playNow) { qIndex = dupIndex; renderQueue(); if (playTrack(queue[dupIndex])) goTo(0); }
+        else loadError.textContent = 'That song is already in your queue.';
+        return;
+      }
 
       const t = { id, title: 'Loading…', author: '' };
       queue.push(t);
@@ -1408,6 +1479,7 @@
     setupMediaKeys();
     render(0);
     initFolder();
+    importChain = importChain.then(dedupeLibrary).catch(() => {});
   </script>
 </body>
 </html>
