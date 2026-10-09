@@ -3,68 +3,57 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Swipe Tabs</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="YT Music">
+  <title>YT Music Player</title>
 
   <style>
     /* ==========================================================================
        1. DESIGN TOKENS
        ========================================================================== */
     :root {
-      /* Surfaces & text */
       --bg:      #ececee;
       --surface: #f7f7f8;
       --card:    #ffffff;
+      --field:   #ebebee;
       --text:    #1c1c1f;
       --muted:   #8a8a92;
       --line:    #dcdce0;
+      --accent:  #2b2b30;          /* primary buttons / seek fill */
+      --on-accent: #f4f4f5;
 
-      /* Navbar */
       --nav:        rgba(40, 40, 44, .92);
       --nav-icon:   #a3a3ab;
       --nav-active: #f4f4f5;
       --pill:       #4a4a50;
 
-      /* Safe areas (notch / home indicator) */
       --safe-top:    env(safe-area-inset-top, 0px);
       --safe-bottom: env(safe-area-inset-bottom, 0px);
-
-      /* Layout */
       --page-max-width: 560px;
-      --page-gutter:    20px;
-      --nav-height:     68px;
-      --nav-gap:        6px;
+      --page-gutter: 20px;
+      --nav-height: 68px;
+      --nav-gap: 6px;
+      --nav-bottom: 18px;
 
-      /* Motion */
       --ease: cubic-bezier(.22, .9, .3, 1);
       --speed: .38s;
     }
-
-    /* Dark theme (follows the device unless forced light) */
     @media (prefers-color-scheme: dark) {
-      :root:not([data-theme="light"]) {
-        --bg: #121214;  --surface: #1a1a1d;  --card: #232327;
+      :root {
+        --bg: #121214;  --surface: #1a1a1d;  --card: #232327;  --field: #2c2c31;
         --text: #f1f1f3;  --muted: #85858d;  --line: #2f2f34;
+        --accent: #f1f1f3;  --on-accent: #16161a;
         --nav: rgba(58, 58, 63, .92);  --nav-icon: #9a9aa2;
         --nav-active: #fff;  --pill: #16161a;
       }
     }
-    /* Dark theme (forced via data-theme="dark") */
-    :root[data-theme="dark"] {
-      --bg: #121214;  --surface: #1a1a1d;  --card: #232327;
-      --text: #f1f1f3;  --muted: #85858d;  --line: #2f2f34;
-      --nav: rgba(58, 58, 63, .92);  --nav-icon: #9a9aa2;
-      --nav-active: #fff;  --pill: #16161a;
-    }
-
 
     /* ==========================================================================
        2. BASE
        ========================================================================== */
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      -webkit-tap-highlight-color: transparent;
-    }
+    * { box-sizing: border-box; margin: 0; -webkit-tap-highlight-color: transparent; }
 
     html, body {
       height: 100%;
@@ -73,277 +62,202 @@
       color: var(--text);
       font-family: Inter, -apple-system, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
     }
-
+    button { font: inherit; color: inherit; }
+    svg { flex: none; }
 
     /* ==========================================================================
        3. APP SHELL & SWIPE TRACK
        ========================================================================== */
-    .app {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: var(--surface);
-    }
-
-    .viewport {
-      height: 100%;
-      overflow: hidden;
-      touch-action: pan-y;               /* browser handles vertical scroll, JS handles horizontal */
-    }
-
+    .app { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--surface); }
+    .viewport { height: 100%; overflow: hidden; touch-action: pan-y; }
     .track {
-      display: flex;
-      width: 400%;                       /* 4 pages */
-      height: 100%;
-      transform: translateX(0);
+      display: flex; width: 400%; height: 100%;
       transition: transform var(--speed) var(--ease);
       will-change: transform;
     }
-    .track.drag { transition: none; }    /* follow the finger with no easing */
-
+    .track.drag { transition: none; }
 
     /* ==========================================================================
        4. PAGES
        ========================================================================== */
     .page {
-      width: 25%;
-      height: 100%;
-      overflow-y: auto;
-      scrollbar-width: none;
+      width: 25%; height: 100%;
+      overflow-y: auto; scrollbar-width: none;
       padding:
         calc(var(--safe-top) + 28px)
         max(var(--page-gutter), calc((100vw - var(--page-max-width)) / 2))
-        calc(var(--safe-bottom) + 120px);          /* room for the floating navbar */
+        calc(var(--safe-bottom) + 190px);
     }
     .page::-webkit-scrollbar { display: none; }
 
-    h1 {
-      margin: 6px 0 22px;
-      font-size: 32px;
-      font-weight: 700;
-      letter-spacing: -.03em;
-    }
-
-    h2 {
-      margin: 0 0 12px;
-      font-size: 20px;
-      font-weight: 600;
-      letter-spacing: -.02em;
-    }
-
-    input {
-      width: 100%;
-      padding: 10px;
-      margin-bottom: 20px;
-      border-radius: 20px;
-      border: 1px solid var(--line);
-      background-color: var(--nav);
-    }
-
+    .eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+    h1 { margin: 6px 0 22px; font-size: 32px; font-weight: 700; letter-spacing: -.03em; }
 
     /* ==========================================================================
        5. COMPONENTS
        ========================================================================== */
-
-    /* Card */
-    .card {
-      margin-bottom: 20px;
-      padding: 18px;
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 22px;
-    }
+    .card { margin-bottom: 12px; padding: 18px; background: var(--card); border: 1px solid var(--line); border-radius: 22px; }
     .card h3 { margin-bottom: 4px; font-size: 16px; font-weight: 600; }
     .card p  { font-size: 14px; line-height: 1.5; color: var(--muted); }
 
-    /* Card variants */
-    .card--hero {
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end;
-      height: 150px;
-      border: 0;
-      color: #fff;
-      background: linear-gradient(135deg, #55555c, #2b2b30);
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 0 20px; height: 48px; border: 0; border-radius: 14px;
+      background: var(--accent); color: var(--on-accent);
+      font-weight: 600; cursor: pointer; transition: transform .15s, opacity .2s;
     }
-    .card--hero p { color: #c4c4ca; }
+    .btn:active { transform: scale(.96); }
+    .btn svg { width: 18px; height: 18px; }
+    .btn--ghost { background: var(--field); color: var(--text); }
+    .btn--round { width: 52px; height: 52px; padding: 0; border-radius: 50%; }
+    .btn--round.btn--lg { width: 68px; height: 68px; }
+    .btn--round.btn--lg svg { width: 26px; height: 26px; }
 
-    .card--row    { display: flex; align-items: center; gap: 14px; }
-    .card--center { text-align: center; }
-
-    /* Background image card variant */
-    .card--image {
-      position: relative;
-      background-size: cover;
-      background-position: center;
-      border: 0;
-      color: #ffffff;
-      overflow: hidden;
+    /* Text input */
+    .input {
+      flex: 1; min-width: 0; height: 48px; padding: 0 16px;
+      border: 1px solid var(--line); border-radius: 14px;
+      background: var(--field); color: var(--text); font: inherit; font-size: 15px;
     }
+    .input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 
-    .card--image::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(to top, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0) 60%);
-      border-radius: inherit;
+    /* Range sliders (seek + volume) */
+    .range {
+      --val: 0%;
+      flex: 1; height: 6px; border-radius: 3px;
+      -webkit-appearance: none; appearance: none; outline: none; cursor: pointer;
+      touch-action: none;
+      background: linear-gradient(to right, var(--accent) var(--val), var(--field) var(--val));
     }
-
-    .card--image h3 {
-      position: relative;
-      z-index: 1;
-      color: #ffffff;
+    .range::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: var(--accent); border: 3px solid var(--card);
+      box-shadow: 0 1px 4px rgba(0,0,0,.3);
     }
-
-    /* Icon badge */
-    .icon-badge {
-      flex: none;
-      display: grid;
-      place-items: center;
-      width: 42px;
-      height: 42px;
-      border-radius: 14px;
-      color: var(--text);
-      background: var(--surface);
-    }
-    .icon-badge svg { width: 20px; height: 20px; }
-
-    /* Avatar */
-    .avatar {
-      width: 84px;
-      height: 84px;
-      margin: 10px auto 14px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #9a9aa2, #5a5a61);
+    .range::-moz-range-thumb {
+      width: 12px; height: 12px; border-radius: 50%;
+      background: var(--accent); border: 3px solid var(--card);
     }
 
-    /* Square tile grid */
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
+    /* ---- Now Playing ---- */
+    .cover {
+      position: relative; width: 100%; aspect-ratio: 16 / 9; margin-bottom: 20px;
+      border-radius: 24px; overflow: hidden; background: var(--field);
+      display: grid; place-items: center; color: var(--muted);
+      box-shadow: 0 14px 34px rgba(0,0,0,.18);
     }
-    .grid .card {
-      display: flex;
-      align-items: flex-end;
-      margin: 0;
-      aspect-ratio: 1;
-    }
+    .cover svg { width: 44px; height: 44px; }
+    .cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .cover img[hidden] { display: none; }
 
+    .track-title  { font-size: 20px; font-weight: 700; letter-spacing: -.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .track-author { margin-top: 4px; font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .progress { display: flex; align-items: center; gap: 12px; margin: 26px 0 22px; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); }
+    .controls { display: flex; justify-content: center; align-items: center; gap: 12px; }
+    .controls .btn--round { width: 46px; height: 46px; }
+    .controls .btn--round.btn--lg { width: 68px; height: 68px; }
+
+    /* ---- Load ---- */
+    .field-row { display: flex; gap: 10px; }
+    .hint  { margin-top: 12px; font-size: 13px; color: var(--muted); line-height: 1.5; }
+    .error { margin-top: 12px; font-size: 13px; color: #d4493b; min-height: 1em; }
+
+    /* ---- History list ---- */
+    .item {
+      display: flex; align-items: center; gap: 14px; width: 100%;
+      margin-bottom: 10px; padding: 10px; text-align: left; cursor: pointer;
+      background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+    }
+    .item img { width: 84px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; background: var(--field); }
+    .item__meta { min-width: 0; }
+    .item__title  { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .item__author { margin-top: 2px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .empty { padding: 40px 0; text-align: center; color: var(--muted); font-size: 14px; }
+
+    /* ---- Settings ---- */
+    .setting { display: flex; align-items: center; gap: 14px; }
+    .setting svg { width: 20px; height: 20px; color: var(--muted); }
+
+    /* ---- Queue, playlists, sheet ---- */
+    .section-title { display: flex; align-items: center; justify-content: space-between; margin: 28px 0 12px; font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+    .link-btn { border: 0; background: none; padding: 6px 0; font-size: 12px; font-weight: 600; letter-spacing: .04em; color: var(--muted); cursor: pointer; }
+    .item__meta { flex: 1; }
+    .item.current { border-color: var(--accent); }
+    .icon-btn { flex: none; width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--field); color: var(--text); cursor: pointer; }
+    .icon-btn svg { width: 16px; height: 16px; }
+
+    .pl { margin-bottom: 12px; padding: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 22px; }
+    .pl__head { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+    .pl__cover { flex: none; width: 52px; height: 52px; display: grid; place-items: center; overflow: hidden; border-radius: 14px; background: var(--field); color: var(--muted); }
+    .pl__cover img { width: 100%; height: 100%; object-fit: cover; }
+    .pl__tracks { margin-top: 12px; }
+    .pl__tracks .item { background: var(--surface); }
+
+    .sheet { position: absolute; inset: 0; z-index: 10; display: flex; align-items: flex-end; justify-content: center; background: rgba(0,0,0,.45); opacity: 0; pointer-events: none; transition: opacity .25s; }
+    .sheet.show { opacity: 1; pointer-events: auto; }
+    .sheet__panel { width: 100%; max-width: 560px; max-height: 70%; overflow-y: auto; padding: 22px 20px calc(var(--safe-bottom) + 22px); background: var(--surface); border-radius: 28px 28px 0 0; transform: translateY(30px); transition: transform .3s var(--ease); }
+    .sheet.show .sheet__panel { transform: none; }
+    .sheet__panel h3 { margin-bottom: 14px; font-size: 18px; }
 
     /* ==========================================================================
-       6. PILL NAVBAR
+       6. MINI PLAYER (shown above the navbar on other tabs)
+       ========================================================================== */
+    .mini {
+      position: absolute; left: 50%; z-index: 4;
+      bottom: calc(var(--safe-bottom) + var(--nav-bottom) + var(--nav-height) + 10px);
+      width: calc(100% - 40px); max-width: 340px;
+      display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 8px;
+      border-radius: 999px; background: var(--card); border: 1px solid var(--line);
+      box-shadow: 0 10px 26px rgba(0,0,0,.16);
+      transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+      transition: transform .3s var(--ease), opacity .3s;
+    }
+    .mini.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+    .mini img { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; background: var(--field); }
+    .mini__title { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mini .btn--round { width: 42px; height: 42px; }
+    .mini .btn--round svg { width: 18px; height: 18px; }
+
+    /* ==========================================================================
+       7. PILL NAVBAR
        ========================================================================== */
     .nav {
-      position: absolute;
-      left: 50%;
-      bottom: calc(var(--safe-bottom) + 18px);
+      position: absolute; left: 50%; z-index: 5;
+      bottom: calc(var(--safe-bottom) + var(--nav-bottom));
       transform: translateX(-50%);
-      z-index: 5;
-      display: flex;
-      width: calc(100% - 40px);
-      max-width: 340px;
-      height: var(--nav-height);
-      padding: var(--nav-gap);
-      border-radius: 999px;
-      background: var(--nav);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
-      box-shadow:
-        0 14px 34px rgba(0, 0, 0, .28),
-        inset 0 0 0 1px rgba(255, 255, 255, .06);
+      display: flex; width: calc(100% - 40px); max-width: 340px;
+      height: var(--nav-height); padding: var(--nav-gap);
+      border-radius: 999px; background: var(--nav);
+      backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+      box-shadow: 0 14px 34px rgba(0,0,0,.28), inset 0 0 0 1px rgba(255,255,255,.06);
     }
-
-    /* Sliding highlight behind the active tab */
     .nav__pill {
-      position: absolute;
-      top: var(--nav-gap);
-      bottom: var(--nav-gap);
-      left: var(--nav-gap);
+      position: absolute; top: var(--nav-gap); bottom: var(--nav-gap); left: var(--nav-gap);
       width: calc((100% - var(--nav-gap) * 2) / 4);
-      border-radius: 999px;
-      background: var(--pill);
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07);
-      transform: translateX(calc(var(--p, 0) * 100%));   /* --p = fractional tab position */
+      border-radius: 999px; background: var(--pill);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.07);
+      transform: translateX(calc(var(--p, 0) * 100%));
       transition: transform var(--speed) var(--ease);
     }
     .nav.drag .nav__pill { transition: none; }
 
-    /* Tab buttons */
     .tab {
-      position: relative;
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 3px;
-      border: 0;
-      border-radius: 999px;
-      background: none;
-      color: var(--nav-icon);
-      font: inherit;
-      font-size: 10.5px;
-      font-weight: 600;
-      letter-spacing: .02em;
-      cursor: pointer;
+      position: relative; flex: 1;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+      border: 0; border-radius: 999px; background: none; color: var(--nav-icon);
+      font-size: 10.5px; font-weight: 600; letter-spacing: .02em; cursor: pointer;
       transition: color .25s;
     }
-    .tab svg {
-      width: 21px;
-      height: 21px;
-      stroke-width: 2;
-      transition: transform .3s;
-    }
+    .tab svg { width: 21px; height: 21px; stroke-width: 2; transition: transform .3s; }
     .tab.active { color: var(--nav-active); }
     .tab.active svg { transform: translateY(-1px) scale(1.08); }
     .tab:focus-visible { outline: 2px solid var(--nav-active); outline-offset: -3px; }
 
-    /* ==========================================================================
-       7. MODAL
-       ========================================================================== */
-    .modal-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: rgba(0, 0, 0, 0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-    }
-
-    .modal-card {
-      background: var(--card);
-      padding: 24px;
-      border-radius: 8px;
-      max-width: 500px;
-      width: 90%;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    }
-
-    .modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 12px;
-    }
-
-    .modal-close {
-      background: none;
-      border: none;
-      font-size: 24px;
-      cursor: pointer;
-    }
-
-    /* MISC ELEMENTS*/
-    a {
-      color: #009bc2;
-      text-decoration: none;
-    }
+    /* Hidden YouTube engine */
+    #yt-hidden-player { position: absolute; top: -9999px; left: -9999px; width: 1px; height: 1px; }
   </style>
 </head>
 
@@ -354,284 +268,719 @@
     <main class="viewport" id="viewport">
       <div class="track" id="track">
 
-        <!-- 1 · Home -->
+        <!-- 1 · Now Playing -->
         <section class="page">
-          <h1>Home</h1>
-          <h2>For You</h2>
-          <div class="grid">
-            <div class="card card--image" style="background-image: url('https://grabezany.github.io/gMusic/images/frank_ocean.png');">
-              <h3>Frank Ocean</h3>
+          <div class="eyebrow">Now playing</div>
+          <h1>Player</h1>
+
+          <div class="cover">
+            <i data-lucide="music"></i>
+            <img id="track-thumb" alt="" hidden>
+          </div>
+
+          <p class="track-title" id="track-title">No track loaded</p>
+          <p class="track-author" id="track-author">Paste a link in the Load tab</p>
+
+          <div class="progress">
+            <span id="current-time">0:00</span>
+            <input type="range" id="seek-bar" class="range" value="0" min="0" max="100" step="0.1" aria-label="Seek">
+            <span id="total-time">0:00</span>
+          </div>
+
+          <div class="controls">
+            <button class="btn btn--ghost btn--round" id="mute-btn" aria-label="Mute"><i data-lucide="volume-2"></i></button>
+            <button class="btn btn--ghost btn--round" id="prev-btn" aria-label="Previous"><i data-lucide="skip-back"></i></button>
+            <button class="btn btn--round btn--lg" id="play-btn" aria-label="Play"><i data-lucide="play"></i></button>
+            <button class="btn btn--ghost btn--round" id="next-btn" aria-label="Next"><i data-lucide="skip-forward"></i></button>
+            <button class="btn btn--ghost btn--round" id="stop-btn" aria-label="Stop"><i data-lucide="square"></i></button>
+          </div>
+
+          <button class="btn btn--ghost" id="save-btn" style="width:100%;margin-top:24px"><i data-lucide="list-plus"></i>Save to playlist</button>
+        </section>
+
+        <!-- 2 · Load + Queue -->
+        <section class="page">
+          <div class="eyebrow">Add a track</div>
+          <h1>Load</h1>
+
+          <input class="input" type="text" id="video-url" style="width:100%" placeholder="Paste YouTube link…" autocomplete="off" inputmode="url">
+          <div class="field-row" style="margin-top:10px">
+            <button class="btn" id="load-btn" style="flex:1"><i data-lucide="play"></i>Play now</button>
+            <button class="btn btn--ghost" id="queue-btn" style="flex:1"><i data-lucide="list-plus"></i>Add to queue</button>
+          </div>
+          <p class="error" id="load-error"></p>
+
+          <div class="section-title"><span>Up next</span><button class="link-btn" id="clear-queue">Clear</button></div>
+          <div id="queue-list"></div>
+        </section>
+
+        <!-- 3 · Playlists -->
+        <section class="page">
+          <div class="eyebrow">Your collections</div>
+          <h1>Playlists</h1>
+
+          <div class="field-row">
+            <input class="input" type="text" id="pl-name" placeholder="New playlist name…" maxlength="40">
+            <button class="btn" id="pl-create"><i data-lucide="plus"></i>Create</button>
+          </div>
+          <div id="playlist-list" style="margin-top:20px"></div>
+        </section>
+
+        <!-- 4 · Settings -->
+        <section class="page">
+          <div class="eyebrow">Preferences</div>
+          <h1>Settings</h1>
+
+          <div class="card">
+            <div class="setting">
+              <i data-lucide="volume-1"></i>
+              <input type="range" id="volume-bar" class="range" value="100" min="0" max="100" aria-label="Volume">
+              <i data-lucide="volume-2"></i>
             </div>
+          </div>
 
-            <div class="card"><h3>Malcolm Todd</h3></div>
-
-            <div class="card"><h3>Kendrick Lamar</h3></div>
-
-            <div class="card"><h3>Kanye West</h3></div>
-
-            <div class="card"><h3>Other</h3></div>
-          </div> 
+          <div class="card">
+            <h3>Background playback</h3>
+            <p>Lock-screen controls and a silent keep-alive track turn on automatically while music plays. On iPhone, tap Share → Add to Home Screen and open it from there.</p>
+          </div>
         </section>
 
-        <!-- 2 · Search -->
-        <section class="page">
-          <h1>Search</h1>
-          <input type="text" placeholder="Search..."></input>
-          <h2>Discover Something New</h2>
-          <div class="grid">
-            <div class="card"><h3>Pop</h3></div>
-
-            <div class="card"><h3>Rock</h3></div>
-
-            <div class="card"><h3>Hip Hop</h3></div>
-
-            <div class="card"><h3>R&B</h3></div>
-
-            <div class="card"><h3>Country</h3></div>
-          </div>    
-        </section>
-
-        <!-- 3 · Library -->
-        <section class="page">
-          <h1>Library</h1>
-          <h2>Playlists</h2>
-
-          <div class="grid">
-            <div class="card"><h3>Liked Songs</h3></div>
-          </div>    
-        </section>
-
-        <!-- 4 · News -->
-        <section class="page" id="newsTab">
-          <h1>News</h1>
-        </section>
       </div>
     </main>
+
+    <!-- ===================== ADD-TO-PLAYLIST SHEET ===================== -->
+    <div class="sheet" id="sheet"><div class="sheet__panel" id="sheet-panel"></div></div>
+
+    <!-- ===================== MINI PLAYER ===================== -->
+    <div class="mini" id="mini">
+      <img id="mini-thumb" alt="">
+      <span class="mini__title" id="mini-title">—</span>
+      <button class="btn btn--round" id="mini-play" aria-label="Play / pause"><i data-lucide="play"></i></button>
+    </div>
 
     <!-- ===================== BOTTOM PILL NAVBAR ===================== -->
     <nav class="nav" id="nav" role="tablist" aria-label="Main">
       <div class="nav__pill"></div>
-
-      <button class="tab active" role="tab" aria-selected="true">
-        <i data-lucide="music"></i><span>Home</span>
-      </button>
-      <button class="tab" role="tab" aria-selected="false">
-        <i data-lucide="search"></i><span>Search</span>
-      </button>
-      <button class="tab" role="tab" aria-selected="false">
-        <i data-lucide="library-big"></i><span>Library</span>
-      </button>
-      <button class="tab" role="tab" aria-selected="false">
-        <i data-lucide="mailbox"></i><span>News</span>
-      </button>
+      <button class="tab active" role="tab" aria-selected="true"><i data-lucide="disc-3"></i><span>Player</span></button>
+      <button class="tab" role="tab" aria-selected="false"><i data-lucide="link"></i><span>Load</span></button>
+      <button class="tab" role="tab" aria-selected="false"><i data-lucide="list-music"></i><span>Playlists</span></button>
+      <button class="tab" role="tab" aria-selected="false"><i data-lucide="sliders-horizontal"></i><span>Settings</span></button>
     </nav>
-
   </div>
 
-  <!-- Lucide icons (pinned version) -->
+  <div id="yt-hidden-player"></div>
+
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+  <script src="https://www.youtube.com/iframe_api"></script>
 
   <script>
-    (function () {
-      /* ======================================================================
-         CONFIG
-         ====================================================================== */
-      const SWIPE_DISTANCE_RATIO = 0.25;  // fraction of width needed to change tab
-      const SWIPE_VELOCITY       = 0.5;   // px/ms flick threshold
-      const AXIS_LOCK_THRESHOLD  = 8;     // px before deciding horizontal vs vertical
-      const EDGE_RESISTANCE      = 0.25;  // rubber-band strength at first/last tab
+    /* ========================================================================
+       ELEMENTS
+       ======================================================================== */
+    const $ = (id) => document.getElementById(id);
+    const viewport = $('viewport'), track = $('track'), nav = $('nav');
+    const tabs = [...nav.querySelectorAll('.tab')];
 
-      /* ======================================================================
-         ELEMENTS & STATE
-         ====================================================================== */
-      const viewport = document.getElementById('viewport');
-      const track    = document.getElementById('track');
-      const nav      = document.getElementById('nav');
-      const tabs     = [...nav.querySelectorAll('.tab')];
-      const TAB_COUNT = tabs.length;
+    const videoUrlInput = $('video-url'), loadBtn = $('load-btn'), loadError = $('load-error');
+    const playBtn = $('play-btn'), stopBtn = $('stop-btn'), muteBtn = $('mute-btn');
+    const seekBar = $('seek-bar'), volumeBar = $('volume-bar');
+    const currentTimeEl = $('current-time'), totalTimeEl = $('total-time');
+    const trackThumb = $('track-thumb'), trackTitle = $('track-title'), trackAuthor = $('track-author');
+    const prevBtn = $('prev-btn'), nextBtn = $('next-btn'), saveBtn = $('save-btn');
+    const queueBtn = $('queue-btn'), clearQueueBtn = $('clear-queue'), queueList = $('queue-list');
+    const playlistList = $('playlist-list'), plName = $('pl-name'), plCreate = $('pl-create');
+    const sheet = $('sheet'), sheetPanel = $('sheet-panel');
+    const mini = $('mini'), miniThumb = $('mini-thumb'), miniTitle = $('mini-title'), miniPlay = $('mini-play');
 
-      let currentIndex = 0;
+    /* ========================================================================
+       HELPERS
+       ======================================================================== */
+    function icons() { if (window.lucide) lucide.createIcons(); }
 
-      const drag = {
-        active: false,
-        axis: null,        // 'x' | 'y' | null
-        startX: 0,
-        startY: 0,
-        startTime: 0,
-        width: 1,
-      };
+    function setIcon(btn, name) {
+      btn.innerHTML = `<i data-lucide="${name}"></i>`;
+      icons();
+    }
 
-      /* ======================================================================
-         RENDERING
-         ====================================================================== */
-      function render(position) {
-        track.style.transform = `translateX(${-position * (100 / TAB_COUNT)}%)`;
-        nav.style.setProperty('--p', position);
+    function setFill(range) {
+      const pct = ((range.value - range.min) / (range.max - range.min)) * 100;
+      range.style.setProperty('--val', pct + '%');
+    }
+
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    }
+
+    function escapeHTML(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    const thumbUrl = (id) => `https://img.youtube.com/vi/${id}/mqdefault.jpg`;
+
+    /* ========================================================================
+       TAB NAVIGATION + SWIPE
+       ======================================================================== */
+    const SWIPE_DISTANCE_RATIO = 0.25;
+    const SWIPE_VELOCITY       = 0.5;
+    const AXIS_LOCK_THRESHOLD  = 8;
+    const EDGE_RESISTANCE      = 0.25;
+    const TAB_COUNT = tabs.length;
+
+    let currentIndex = 0;
+    const drag = { active: false, axis: null, startX: 0, startY: 0, startTime: 0, width: 1 };
+
+    function render(position) {
+      track.style.transform = `translateX(${-position * (100 / TAB_COUNT)}%)`;
+      nav.style.setProperty('--p', position);
+    }
+
+    function goTo(index) {
+      currentIndex = Math.max(0, Math.min(TAB_COUNT - 1, index));
+      render(currentIndex);
+      tabs.forEach((tab, i) => {
+        tab.classList.toggle('active', i === currentIndex);
+        tab.setAttribute('aria-selected', i === currentIndex);
+      });
+      updateMini();
+    }
+
+    function setDragging(on) {
+      track.classList.toggle('drag', on);
+      nav.classList.toggle('drag', on);
+    }
+
+    function applyEdgeResistance(p) {
+      const last = TAB_COUNT - 1;
+      if (p < 0)    return p * EDGE_RESISTANCE;
+      if (p > last) return last + (p - last) * EDGE_RESISTANCE;
+      return p;
+    }
+
+    viewport.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('input, textarea')) return;   // sliders & text fields keep their own gestures
+      drag.active = true; drag.axis = null;
+      drag.startX = e.clientX; drag.startY = e.clientY;
+      drag.startTime = Date.now(); drag.width = viewport.clientWidth;
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!drag.active) return;
+      const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY;
+      if (drag.axis === null && (Math.abs(dx) > AXIS_LOCK_THRESHOLD || Math.abs(dy) > AXIS_LOCK_THRESHOLD)) {
+        drag.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+        if (drag.axis === 'x') setDragging(true);
       }
+      if (drag.axis !== 'x') return;
+      render(applyEdgeResistance(currentIndex - dx / drag.width));
+    });
 
-      function setActiveTab(index) {
-        tabs.forEach((tab, i) => {
-          const isActive = i === index;
-          tab.classList.toggle('active', isActive);
-          tab.setAttribute('aria-selected', isActive);
-        });
-      }
-
-      function goTo(index) {
-        currentIndex = Math.max(0, Math.min(TAB_COUNT - 1, index));
-        render(currentIndex);
-        setActiveTab(currentIndex);
-      }
-
-      function setDragging(isDragging) {
-        track.classList.toggle('drag', isDragging);
-        nav.classList.toggle('drag', isDragging);
-      }
-
-      /* ======================================================================
-         SWIPE HANDLING
-         ====================================================================== */
-      function applyEdgeResistance(position) {
-        const last = TAB_COUNT - 1;
-        if (position < 0)    return position * EDGE_RESISTANCE;
-        if (position > last) return last + (position - last) * EDGE_RESISTANCE;
-        return position;
-      }
-
-      function onPointerDown(e) {
-        drag.active = true;
-        drag.axis = null;
-        drag.startX = e.clientX;
-        drag.startY = e.clientY;
-        drag.startTime = Date.now();
-        drag.width = viewport.clientWidth;
-      }
-
-      function onPointerMove(e) {
-        if (!drag.active) return;
-
+    function endDrag(e) {
+      if (!drag.active) return;
+      drag.active = false;
+      if (drag.axis === 'x') {
+        setDragging(false);
         const dx = e.clientX - drag.startX;
-        const dy = e.clientY - drag.startY;
-
-        if (drag.axis === null &&
-            (Math.abs(dx) > AXIS_LOCK_THRESHOLD || Math.abs(dy) > AXIS_LOCK_THRESHOLD)) {
-          drag.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
-          if (drag.axis === 'x') setDragging(true);
-        }
-        if (drag.axis !== 'x') return;
-
-        render(applyEdgeResistance(currentIndex - dx / drag.width));
+        const velocity = Math.abs(dx) / Math.max(1, Date.now() - drag.startTime);
+        const passed = Math.abs(dx) > drag.width * SWIPE_DISTANCE_RATIO || velocity > SWIPE_VELOCITY;
+        goTo(passed ? currentIndex + (dx < 0 ? 1 : -1) : currentIndex);
       }
+      drag.axis = null;
+    }
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
 
-      function onPointerEnd(e) {
-        if (!drag.active) return;
-        drag.active = false;
+    tabs.forEach((tab, i) => tab.addEventListener('click', () => goTo(i)));
 
-        if (drag.axis === 'x') {
-          setDragging(false);
+    window.addEventListener('keydown', (e) => {
+      if (e.target.closest('input')) return;
+      if (e.key === 'ArrowRight') goTo(currentIndex + 1);
+      if (e.key === 'ArrowLeft')  goTo(currentIndex - 1);
+    });
 
-          const dx = e.clientX - drag.startX;
-          const velocity = Math.abs(dx) / Math.max(1, Date.now() - drag.startTime);
-          const passedThreshold =
-            Math.abs(dx) > drag.width * SWIPE_DISTANCE_RATIO || velocity > SWIPE_VELOCITY;
+    /* ========================================================================
+       STORAGE & STATE
+       ======================================================================== */
+    const STORE = { queue: 'ytmp-queue', playlists: 'ytmp-playlists' };
+    const load = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch (_) { return fallback; } };
+    const save = (key, val) => { try { localStorage.setItem(key, JSON.stringify(val)); } catch (_) {} };
+    const uid = () => Math.random().toString(36).slice(2, 9);
 
-          goTo(passedThreshold ? currentIndex + (dx < 0 ? 1 : -1) : currentIndex);
-        }
-        drag.axis = null;
-      }
+    let queue = load(STORE.queue, []);
+    let playlists = load(STORE.playlists, []);
+    let qIndex = -1;            // position of the current track in the queue
+    let currentTrack = null;
+    let openPlaylist = null;
+    let hasTrack = false;
+    let wantPlaying = false;    // true from the user's play tap until they pause/stop
+    let sheetTracks = [];
+    let lastResume = 0;
 
-      /* ======================================================================
-         INIT
-         ====================================================================== */
-      if (window.lucide) lucide.createIcons();
-
-      tabs.forEach((tab, i) => tab.addEventListener('click', () => goTo(i)));
-
-      viewport.addEventListener('pointerdown', onPointerDown);
-      window.addEventListener('pointermove', onPointerMove);
-      window.addEventListener('pointerup', onPointerEnd);
-      window.addEventListener('pointercancel', onPointerEnd);
-
-      window.addEventListener('keydown', (e) => {
-        if (e.key === 'ArrowRight') goTo(currentIndex + 1);
-        if (e.key === 'ArrowLeft')  goTo(currentIndex - 1);
-      });
-    })();
-
-    // Notification System
-    var notifications = [
-      {
-        id: 1,
-        title: "Welcome to gMusic!",
-        summary: "Your personalized music experience starts here.",
-        message: "<p>Welcome to gMusic! gMusic is a powerful open source music player. Where you can discover and enjoy your favorite tunes. On top of that, its completely free with no ads!",
-        timestamp: "10-9-2026",
-        icon: "music"
-      }
-    ];
-
-    const section = document.getElementById("newsTab"); 
-
-    function populateNotifications() {
-      for (var i = 0; i < notifications.length; i++) {
-        var notification = notifications[i];
-        var notificationElement = document.createElement("div");
-        notificationElement.className = "card card--row";
-        notificationElement.innerHTML = 
-          '<div class="icon-badge"><i data-lucide="' + notification.icon + '"></i></div>' +
-          '<div><h3>' + notification.title + '</h3><p>' + notification.summary + '</p></div>';
-
-        section.appendChild(notificationElement);
-        lucide.createIcons();
-
-        (function(data) {
-          notificationElement.addEventListener("click", function() {
-            showModal(data);
-          });
-        })(notification);
-      }
+    async function fetchMeta(id) {
+      try {
+        const url = 'https://www.youtube.com/watch?v=' + id;
+        const r = await fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent(url));
+        if (!r.ok) throw new Error('oembed');
+        const d = await r.json();
+        return { title: d.title, author: d.author_name };
+      } catch (_) { return { title: 'YouTube video', author: '' }; }
     }
 
-    function showModal(notification) {
-      var overlay = document.createElement("div");
-      overlay.className = "modal-overlay";
+    /* ========================================================================
+       BACKGROUND PLAYBACK (iPhone lock screen)
+       A silent looping <audio> keeps the page's audio session alive, and the
+       Media Session API gives lock-screen controls.
+       ======================================================================== */
+    function makeSilentWav() {
+      const rate = 8000, n = rate;                       // 1 second, 8-bit mono
+      const buf = new ArrayBuffer(44 + n), v = new DataView(buf);
+      const w = (o, str) => [...str].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+      w(0, 'RIFF'); v.setUint32(4, 36 + n, true); w(8, 'WAVEfmt ');
+      v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+      v.setUint32(24, rate, true); v.setUint32(28, rate, true);
+      v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+      w(36, 'data'); v.setUint32(40, n, true);
+      new Uint8Array(buf, 44).fill(128);
+      return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+    }
 
-      var modal = document.createElement("div");
-      modal.className = "modal-card";
+    const keepAlive = new Audio(makeSilentWav());
+    keepAlive.loop = true;
+    keepAlive.setAttribute('playsinline', '');
 
-      modal.innerHTML = 
-        '<div class="modal-header">' +
-          '<h3>' + notification.title + '</h3>' +
-          '<button class="modal-close">&times;</button>' +
-        '</div>' +
-        '<div class="modal-body rich-text">' +
-          (notification.message || notification.summary) +
-        '</div>';
+    const startSession = () => keepAlive.play().catch(() => {});
+    const endSession = () => keepAlive.pause();
 
-      overlay.appendChild(modal);
-      document.body.appendChild(overlay);
+    function setPlaybackState(state) {
+      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = state;
+    }
 
-      if (window.lucide) {
-        lucide.createIcons();
-      }
-
-      function closeModal() {
-        if (document.body.contains(overlay)) {
-          document.body.removeChild(overlay);
-        }
-      }
-
-      modal.querySelector(".modal-close").addEventListener("click", closeModal);
-      overlay.addEventListener("click", function(e) {
-        if (e.target === overlay) {
-          closeModal();
-        }
+    function updateMediaSession(t) {
+      if (!('mediaSession' in navigator) || !t) return;
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: t.title || 'YouTube',
+        artist: t.author || '',
+        album: 'YT Music Player',
+        artwork: [{ src: thumbUrl(t.id), sizes: '320x180', type: 'image/jpeg' }]
       });
     }
 
-    window.onload = function() {
-      populateNotifications();
+    function setupMediaKeys() {
+      if (!('mediaSession' in navigator)) return;
+      const handlers = {
+        play: resume, pause: pauseUser, stop: stopUser,
+        previoustrack: prev, nexttrack: next
+      };
+      Object.entries(handlers).forEach(([name, fn]) => {
+        try { navigator.mediaSession.setActionHandler(name, fn); } catch (_) {}
+      });
+    }
+
+    // If iOS pauses the video when the screen turns off, try to pick it back up.
+    document.addEventListener('visibilitychange', () => {
+      if (!wantPlaying || !player || typeof player.getPlayerState !== 'function') return;
+      startSession();
+      if (player.getPlayerState() !== YT.PlayerState.PLAYING) player.playVideo();
+    });
+
+    /* ========================================================================
+       TRACK UI
+       ======================================================================== */
+    function showTrack(t) {
+      hasTrack = true;
+      trackThumb.src = thumbUrl(t.id);
+      trackThumb.hidden = false;
+      miniThumb.src = thumbUrl(t.id);
+      setTitle(t.title, t.author);
+      updateMediaSession(t);
+      updateMini();
+    }
+
+    function setTitle(title, author) {
+      trackTitle.textContent = title;
+      trackAuthor.textContent = author || '';
+      miniTitle.textContent = title;
+    }
+
+    function resetProgress() {
+      seekBar.value = 0; setFill(seekBar);
+      currentTimeEl.textContent = '0:00';
+      totalTimeEl.textContent = '0:00';
+    }
+
+    function updateMini() {
+      mini.classList.toggle('show', hasTrack && currentIndex !== 0);
+    }
+
+    /* ========================================================================
+       LIST RENDERING
+       ======================================================================== */
+    const iconBtn = (act, icon, label) =>
+      `<button class="icon-btn" data-act="${act}" aria-label="${label}"><i data-lucide="${icon}"></i></button>`;
+
+    function row(t, attrs, current, actions) {
+      return `<div class="item${current ? ' current' : ''}" ${attrs}>
+        <img src="${thumbUrl(t.id)}" alt="" loading="lazy">
+        <div class="item__meta">
+          <div class="item__title">${escapeHTML(t.title)}</div>
+          <div class="item__author">${escapeHTML(t.author || '')}</div>
+        </div>${actions}</div>`;
+    }
+
+    function renderQueue() {
+      queueList.innerHTML = queue.length
+        ? queue.map((t, i) => row(t, `data-i="${i}"`, i === qIndex,
+            iconBtn('save', 'list-plus', 'Save to playlist') + iconBtn('remove', 'x', 'Remove'))).join('')
+        : '<p class="empty">Queue is empty.</p>';
+      icons();
+      save(STORE.queue, queue);
+    }
+
+    function renderPlaylists() {
+      if (!playlists.length) {
+        playlistList.innerHTML = '<p class="empty">No playlists yet. Create one above.</p>';
+        return;
+      }
+      playlistList.innerHTML = playlists.map((p) => {
+        const open = p.id === openPlaylist, first = p.tracks[0], n = p.tracks.length;
+        const tracksHTML = n
+          ? p.tracks.map((t, i) => row(t, `data-i="${i}"`, false, iconBtn('remove', 'x', 'Remove'))).join('')
+            + '<button class="link-btn" data-act="enqueue">Add all to queue</button>'
+          : '<p class="empty" style="padding:16px 0">Empty — use “Save to playlist” on any track.</p>';
+        return `<div class="pl" data-pl="${p.id}">
+          <div class="pl__head" data-act="toggle">
+            <div class="pl__cover">${first ? `<img src="${thumbUrl(first.id)}" alt="">` : '<i data-lucide="list-music"></i>'}</div>
+            <div class="item__meta">
+              <div class="item__title">${escapeHTML(p.name)}</div>
+              <div class="item__author">${n} track${n === 1 ? '' : 's'}</div>
+            </div>
+            ${iconBtn('play', 'play', 'Play playlist')}${iconBtn('delete', 'trash-2', 'Delete playlist')}
+          </div>
+          ${open ? `<div class="pl__tracks">${tracksHTML}</div>` : ''}
+        </div>`;
+      }).join('');
+      icons();
+    }
+
+    const savePlaylists = () => save(STORE.playlists, playlists);
+
+    /* ========================================================================
+       PLAYLIST ACTIONS + "SAVE TO PLAYLIST" SHEET
+       ======================================================================== */
+    function createPlaylist(name) {
+      const pl = { id: uid(), name: name.trim(), tracks: [] };
+      playlists.unshift(pl);
+      return pl;
+    }
+
+    function addToPlaylist(pl, tracks) {
+      tracks.forEach((t) => {
+        if (!pl.tracks.some((x) => x.id === t.id)) pl.tracks.push({ id: t.id, title: t.title, author: t.author });
+      });
+      savePlaylists();
+      renderPlaylists();
+    }
+
+    function playList(pl, startAt) {
+      if (!pl.tracks.length) return;
+      queue = pl.tracks.map((t) => ({ ...t }));
+      qIndex = startAt;
+      renderQueue();
+      if (playTrack(queue[qIndex])) goTo(0);
+    }
+
+    function openSheet(tracks) {
+      sheetTracks = tracks;
+      sheetPanel.innerHTML = '<h3>Save to playlist</h3>'
+        + playlists.map((p) => `<button class="item" data-pl="${p.id}">
+            <div class="item__meta"><div class="item__title">${escapeHTML(p.name)}</div>
+            <div class="item__author">${p.tracks.length} tracks</div></div></button>`).join('')
+        + `<div class="field-row" style="margin-top:6px">
+            <input class="input" id="sheet-name" placeholder="New playlist…" maxlength="40">
+            <button class="btn" id="sheet-create">Create</button></div>`;
+      sheet.classList.add('show');
+    }
+    const closeSheet = () => sheet.classList.remove('show');
+
+    sheet.addEventListener('click', (e) => {
+      if (e.target === sheet) return closeSheet();
+      const item = e.target.closest('.item[data-pl]');
+      if (item) {
+        addToPlaylist(playlists.find((p) => p.id === item.dataset.pl), sheetTracks);
+        closeSheet();
+      } else if (e.target.closest('#sheet-create')) {
+        const name = $('sheet-name').value;
+        if (!name.trim()) return;
+        addToPlaylist(createPlaylist(name), sheetTracks);
+        closeSheet();
+      }
+    });
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
+
+    function submitPlaylist() {
+      if (!plName.value.trim()) return;
+      const pl = createPlaylist(plName.value);
+      openPlaylist = pl.id;
+      plName.value = '';
+      savePlaylists();
+      renderPlaylists();
+    }
+    plCreate.addEventListener('click', submitPlaylist);
+    plName.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitPlaylist(); });
+
+    playlistList.addEventListener('click', (e) => {
+      const card = e.target.closest('.pl');
+      if (!card) return;
+      const pl = playlists.find((x) => x.id === card.dataset.pl);
+      const actEl = e.target.closest('[data-act]');
+      const act = actEl && actEl.dataset.act;
+      const item = e.target.closest('.item');
+
+      if (item) {
+        const i = Number(item.dataset.i);
+        if (act === 'remove') { pl.tracks.splice(i, 1); savePlaylists(); renderPlaylists(); }
+        else playList(pl, i);
+        return;
+      }
+      if (act === 'play') playList(pl, 0);
+      else if (act === 'delete') {
+        if (confirm(`Delete “${pl.name}”?`)) { playlists = playlists.filter((x) => x !== pl); savePlaylists(); renderPlaylists(); }
+      }
+      else if (act === 'enqueue') { queue.push(...pl.tracks.map((t) => ({ ...t }))); renderQueue(); actEl.textContent = 'Added ✓'; }
+      else if (act === 'toggle') { openPlaylist = openPlaylist === pl.id ? null : pl.id; renderPlaylists(); }
+    });
+
+    /* ========================================================================
+       QUEUE ACTIONS
+       ======================================================================== */
+    queueList.addEventListener('click', (e) => {
+      const item = e.target.closest('.item');
+      if (!item) return;
+      const i = Number(item.dataset.i);
+      const actEl = e.target.closest('[data-act]');
+      const act = actEl && actEl.dataset.act;
+
+      if (act === 'remove') {
+        queue.splice(i, 1);
+        if (i < qIndex) qIndex--;
+        else if (i === qIndex) qIndex = i - 1;   // so "next" plays what slid into this slot
+        renderQueue();
+      } else if (act === 'save') {
+        openSheet([queue[i]]);
+      } else {
+        playQueueIndex(i);
+      }
+    });
+
+    clearQueueBtn.addEventListener('click', () => {
+      queue = queue.filter((_, i) => i === qIndex);
+      qIndex = queue.length ? 0 : -1;
+      renderQueue();
+    });
+
+    function playQueueIndex(i) {
+      qIndex = i;
+      renderQueue();
+      playTrack(queue[i]);
+    }
+
+    function next() {
+      if (qIndex + 1 < queue.length) { playQueueIndex(qIndex + 1); return true; }
+      return false;
+    }
+
+    function prev() {
+      if (player && typeof player.getCurrentTime === 'function' && player.getCurrentTime() > 3) { player.seekTo(0, true); return; }
+      if (qIndex > 0) playQueueIndex(qIndex - 1);
+      else if (player && typeof player.seekTo === 'function') player.seekTo(0, true);
+    }
+
+    function submitLoad(playNow) {
+      const id = extractVideoId(videoUrlInput.value.trim());
+      if (!id) { loadError.textContent = 'Please enter a valid YouTube video link.'; return; }
+      loadError.textContent = '';
+      videoUrlInput.value = '';
+
+      const t = { id, title: 'Loading…', author: '' };
+      queue.push(t);
+      fetchMeta(id).then((m) => {
+        t.title = m.title; t.author = m.author;
+        renderQueue();
+        if (currentTrack === t) { setTitle(t.title, t.author); updateMediaSession(t); }
+      });
+
+      if (playNow) {
+        qIndex = queue.length - 1;
+        if (playTrack(t)) goTo(0);
+      }
+      renderQueue();
+    }
+
+    loadBtn.addEventListener('click', () => submitLoad(true));
+    queueBtn.addEventListener('click', () => submitLoad(false));
+    videoUrlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitLoad(true); });
+    videoUrlInput.addEventListener('input', () => { loadError.textContent = ''; });
+
+    /* ========================================================================
+       YOUTUBE PLAYER
+       ======================================================================== */
+    let player, updateTimer;
+
+    window.onYouTubeIframeAPIReady = function () {
+      player = new YT.Player('yt-hidden-player', {
+        height: '200',
+        width: '200',
+        videoId: '',
+        playerVars: { playsinline: 1, controls: 0, disablekb: 1 },
+        events: { onStateChange: onPlayerStateChange }
+      });
     };
+
+    function extractVideoId(url) {
+      const match = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/);
+      return match && match[2].length === 11 ? match[2] : null;
+    }
+
+    function playTrack(t) {
+      if (!player || typeof player.loadVideoById !== 'function') {
+        loadError.textContent = 'Player is still loading — try again in a second.';
+        return false;
+      }
+      currentTrack = t;
+      showTrack(t);
+      resetProgress();
+      wantPlaying = true;
+      startSession();                 // must happen inside the tap for iOS
+      player.loadVideoById(t.id);
+      return true;
+    }
+
+    function onPlayerStateChange(event) {
+      const S = YT.PlayerState;
+
+      if ([S.PLAYING, S.PAUSED, S.CUED].includes(event.data) && currentTrack) {
+        const d = player.getVideoData();
+        if (d && d.title && d.video_id === currentTrack.id && currentTrack.title !== d.title) {
+          currentTrack.title = d.title;
+          currentTrack.author = d.author || currentTrack.author;
+          setTitle(currentTrack.title, currentTrack.author);
+          updateMediaSession(currentTrack);
+          renderQueue();
+        }
+      }
+
+      if (event.data === S.PLAYING) {
+        setIcon(playBtn, 'pause'); setIcon(miniPlay, 'pause');
+        setPlaybackState('playing');
+        startProgressLoop();
+        return;
+      }
+
+      if (event.data === S.ENDED) {
+        clearInterval(updateTimer);
+        if (!next()) {
+          wantPlaying = false; endSession(); resetProgress();
+          setIcon(playBtn, 'play'); setIcon(miniPlay, 'play'); setPlaybackState('paused');
+        }
+        return;
+      }
+
+      if (event.data === S.PAUSED || event.data === S.CUED) {
+        setIcon(playBtn, 'play'); setIcon(miniPlay, 'play');
+        setPlaybackState('paused');
+        clearInterval(updateTimer);
+        if (event.data === S.CUED) resetProgress();
+
+        // The system paused us (e.g. screen locked) but the user never did: resume.
+        if (event.data === S.PAUSED && wantPlaying && document.hidden && Date.now() - lastResume > 1500) {
+          lastResume = Date.now();
+          setTimeout(() => { if (wantPlaying) player.playVideo(); }, 200);
+        }
+      }
+    }
+
+    function startProgressLoop() {
+      clearInterval(updateTimer);
+      updateTimer = setInterval(() => {
+        if (!player || typeof player.getCurrentTime !== 'function') return;
+        const current = player.getCurrentTime();
+        const total = player.getDuration();
+        if (total > 0) {
+          seekBar.value = (current / total) * 100;
+          setFill(seekBar);
+          currentTimeEl.textContent = formatTime(current);
+          totalTimeEl.textContent = formatTime(total);
+          if ('mediaSession' in navigator && navigator.mediaSession.setPositionState) {
+            try { navigator.mediaSession.setPositionState({ duration: total, position: Math.min(current, total), playbackRate: 1 }); } catch (_) {}
+          }
+        }
+      }, 500);
+    }
+
+    /* ========================================================================
+       CONTROLS
+       ======================================================================== */
+    function resume() {
+      if (!player) return;
+      wantPlaying = true;
+      startSession();
+      player.playVideo();
+    }
+
+    function pauseUser() {
+      wantPlaying = false;
+      if (player) player.pauseVideo();
+      endSession();
+    }
+
+    function stopUser() {
+      wantPlaying = false;
+      if (player) player.stopVideo();
+      endSession();
+      setPlaybackState('none');
+    }
+
+    function togglePlay() {
+      if (!player) return;
+      if (!hasTrack) { if (queue.length) playQueueIndex(Math.max(qIndex, 0)); return; }
+      player.getPlayerState() === YT.PlayerState.PLAYING ? pauseUser() : resume();
+    }
+
+    playBtn.addEventListener('click', togglePlay);
+    miniPlay.addEventListener('click', togglePlay);
+    stopBtn.addEventListener('click', stopUser);
+    nextBtn.addEventListener('click', next);
+    prevBtn.addEventListener('click', prev);
+    saveBtn.addEventListener('click', () => { if (currentTrack) openSheet([currentTrack]); });
+
+    muteBtn.addEventListener('click', () => {
+      if (!player) return;
+      if (player.isMuted()) { player.unMute(); setIcon(muteBtn, 'volume-2'); }
+      else                  { player.mute();   setIcon(muteBtn, 'volume-x'); }
+    });
+
+    seekBar.addEventListener('input', () => {
+      setFill(seekBar);
+      if (!player || !hasTrack) return;
+      player.seekTo(player.getDuration() * (seekBar.value / 100), true);
+    });
+
+    volumeBar.addEventListener('input', () => {
+      setFill(volumeBar);
+      if (player && typeof player.setVolume === 'function') player.setVolume(Number(volumeBar.value));
+    });
+
+    /* ========================================================================
+       INIT
+       ======================================================================== */
+    icons();
+    renderQueue();
+    renderPlaylists();
+    setFill(seekBar);
+    setFill(volumeBar);
+    setupMediaKeys();
+    render(0);
   </script>
 </body>
 </html>
