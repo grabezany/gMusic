@@ -215,10 +215,10 @@
        6. MINI PLAYER (shown above the navbar on other tabs)
        ========================================================================== */
     .mini {
-      position: absolute; left: 50%; z-index: 4;
+      position: fixed; left: 50%; z-index: 4;
       bottom: calc(var(--safe-bottom) + var(--nav-bottom) + var(--nav-height) + 10px);
       width: calc(100% - 40px); max-width: 340px;
-      display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 8px;
+      display: flex; align-items: center; gap: 12px; padding: 8px;
       border-radius: 999px; background: var(--card); border: 1px solid var(--line);
       box-shadow: 0 10px 26px rgba(0,0,0,.16);
       transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
@@ -234,7 +234,7 @@
        7. PILL NAVBAR
        ========================================================================== */
     .nav {
-      position: absolute; left: 50%; z-index: 5;
+      position: fixed; left: 50%; z-index: 5;
       bottom: calc(var(--safe-bottom) + var(--nav-bottom));
       transform: translateX(-50%);
       display: flex; width: calc(100% - 40px); max-width: 340px;
